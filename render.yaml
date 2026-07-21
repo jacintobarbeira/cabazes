@@ -2,7 +2,7 @@ services:
   - type: web
     name: cabazes
     runtime: node
-    repo: https://github.com/jacintodbarbeira/cabazes
+    repo: https://github.com/jacintobarbeira/cabazes
     plan: free
     region: frankfurt
     buildCommand: npx prisma generate && next build
