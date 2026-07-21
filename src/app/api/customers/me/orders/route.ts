@@ -1,0 +1,28 @@
+import { prisma } from "@/lib/db"
+import { toOrderDTO } from "@/lib/mappers"
+import { NextResponse } from "next/server"
+import { auth } from "@/auth"
+
+export async function GET() {
+  const session = await auth()
+
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  const orders = await prisma.order.findMany({
+    where: { customerId: session.user.id },
+    include: {
+      basket: { select: { name: true } },
+      swapChoices: {
+        include: {
+          swapGroup: { select: { name: true } },
+          basketItem: { include: { product: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "desc" },
+  })
+
+  return NextResponse.json(orders.map(toOrderDTO))
+}

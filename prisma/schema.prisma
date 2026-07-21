@@ -1,0 +1,179 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  name              String?
+  phone             String?
+  passwordHash      String?
+  role              Role      @default(CUSTOMER)
+  timezone          String    @default("UTC")
+  address           String?
+  city              String?
+  postalCode        String?
+  notes             String?
+  disabled          Boolean   @default(false)
+  mustResetPassword Boolean   @default(false)
+  managedById       String?
+  managedBy         User?     @relation("FarmerHelpers", fields: [managedById], references: [id])
+  helpers           User[]    @relation("FarmerHelpers")
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  orders            Order[]
+  inviteTokens      InviteToken[]
+  accounts          Account[]
+  sessions          Session[]
+  baskets           Basket[]  @relation("FarmerBaskets")
+  products          Product[] @relation("FarmerProducts")
+}
+
+model Product {
+  id          String    @id @default(cuid())
+  farmerId    String
+  farmer      User      @relation("FarmerProducts", fields: [farmerId], references: [id])
+  name        String
+  description String?
+  category    String?
+  unit        String    @default("unit")
+  active      Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  basketItems BasketItem[]
+
+  @@unique([name, farmerId])
+}
+
+model Basket {
+  id            String    @id @default(cuid())
+  farmerId      String
+  farmer        User      @relation("FarmerBaskets", fields: [farmerId], references: [id])
+  name          String
+  description   String?
+  orderDeadline DateTime
+  price         Decimal
+  deliveryDay   DateTime
+  published     Boolean   @default(false)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  items         BasketItem[]
+  orders        Order[]
+  inviteTokens  InviteToken[]
+  swapGroups    SwapGroup[]
+
+  @@unique([name, deliveryDay, farmerId])
+}
+
+model BasketItem {
+  id            String    @id @default(cuid())
+  basketId      String
+  basket        Basket    @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  productId     String
+  product       Product   @relation(fields: [productId], references: [id])
+  quantity      Int       @default(1)
+  isBase        Boolean   @default(true)
+  swapGroupId   String?
+  swapGroup     SwapGroup? @relation(fields: [swapGroupId], references: [id], onDelete: SetNull)
+  orderChoices  OrderSwapChoice[]
+}
+
+model SwapGroup {
+  id            String    @id @default(cuid())
+  basketId      String
+  basket        Basket    @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  name          String?
+  maxChoices    Int       @default(1)
+  items         BasketItem[]
+  orderChoices  OrderSwapChoice[]
+}
+
+model Order {
+  id                 String    @id @default(cuid())
+  customerId         String
+  customer           User      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  basketId           String
+  basket             Basket    @relation(fields: [basketId], references: [id], onDelete: Restrict)
+  inviteTokenId      String?   @unique
+  inviteToken        InviteToken? @relation(fields: [inviteTokenId], references: [id], onDelete: SetNull)
+  status             OrderStatus @default(PENDING)
+  deliveryAddress    String
+  deliveryCity       String?
+  deliveryPostalCode String?
+  deliveryNotes      String?
+  customerName       String?
+  customerEmail      String?
+  customerPhone      String?
+  swapChoices        OrderSwapChoice[]
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  @@unique([customerId, basketId])
+}
+
+model OrderSwapChoice {
+  id            String    @id @default(cuid())
+  orderId       String
+  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  swapGroupId   String
+  swapGroup     SwapGroup @relation(fields: [swapGroupId], references: [id])
+  basketItemId  String
+  basketItem    BasketItem @relation(fields: [basketItemId], references: [id])
+}
+
+model InviteToken {
+  id            String    @id @default(cuid())
+  customerId    String
+  customer      User      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  basketId      String
+  basket        Basket    @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  token         String    @unique
+  expiresAt     DateTime
+  usedAt        DateTime?
+  createdAt     DateTime  @default(now())
+  orders        Order[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expires      DateTime
+}
+
+enum Role {
+  FARMER
+  FARMER_HELPER
+  ADMINISTRATOR
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  DELIVERED
+  CANCELLED
+}

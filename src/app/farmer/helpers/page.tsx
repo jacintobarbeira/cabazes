@@ -1,0 +1,166 @@
+"use client"
+
+import { useEffect, useState } from "react"
+import { Button } from "@/components/Button"
+import { Input } from "@/components/Form"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
+import { Badge } from "@/components/Badge"
+
+interface Helper {
+  id: string
+  email: string
+  name: string | null
+  phone: string | null
+  disabled: boolean
+  createdAt: string
+}
+
+export default function HelpersPage() {
+  const [helpers, setHelpers] = useState<Helper[]>([])
+  const [loading, setLoading] = useState(true)
+  const [showForm, setShowForm] = useState(false)
+  const [name, setName] = useState("")
+  const [email, setEmail] = useState("")
+  const [phone, setPhone] = useState("")
+  const [formError, setFormError] = useState("")
+  const [tempPassword, setTempPassword] = useState<string | null>(null)
+
+  const fetchHelpers = () => {
+    fetch("/api/farmer/helpers")
+      .then((res) => res.json())
+      .then((data) => {
+        setHelpers(data)
+        setLoading(false)
+      })
+  }
+
+  useEffect(() => {
+    fetchHelpers()
+  }, [])
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setFormError("")
+    setTempPassword(null)
+
+    const res = await fetch("/api/farmer/helpers", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name, email, phone }),
+    })
+
+    if (res.ok) {
+      const data = await res.json()
+      setTempPassword(data.tempPassword)
+      setName("")
+      setEmail("")
+      setPhone("")
+      fetchHelpers()
+    } else {
+      const data = await res.json()
+      setFormError(data.error || "Failed to create helper")
+    }
+  }
+
+  const handleToggleDisabled = async (id: string) => {
+    const res = await fetch(`/api/farmer/helpers/${id}`, {
+      method: "PATCH",
+    })
+
+    if (res.ok) {
+      fetchHelpers()
+    }
+  }
+
+  if (loading) return <p className="text-gray-900">Loading...</p>
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-gray-900">Helpers</h1>
+        <Button onClick={() => setShowForm(!showForm)}>
+          {showForm ? "Cancel" : "+ Add Helper"}
+        </Button>
+      </div>
+
+      {showForm && (
+        <Card>
+          <CardHeader>
+            <CardTitle>New Helper</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {formError && (
+                <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">
+                  {formError}
+                </div>
+              )}
+              {tempPassword && (
+                <div className="bg-green-50 text-green-700 text-sm p-3 rounded-md">
+                  Helper created! Temp password: <strong>{tempPassword}</strong>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">Name</label>
+                  <Input value={name} onChange={(e) => setName(e.target.value)} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">Email *</label>
+                  <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-900 mb-1">Phone</label>
+                <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
+              </div>
+              <Button type="submit">Create Helper</Button>
+            </form>
+          </CardContent>
+        </Card>
+      )}
+
+      <Card>
+        <CardContent className="pt-6">
+          {helpers.length === 0 ? (
+            <p className="text-gray-900 text-sm">No helpers yet.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-200">
+                  <th className="text-left py-2 font-medium text-gray-900">Name</th>
+                  <th className="text-left py-2 font-medium text-gray-900">Email</th>
+                  <th className="text-left py-2 font-medium text-gray-900">Phone</th>
+                  <th className="text-left py-2 font-medium text-gray-900">Status</th>
+                  <th className="text-right py-2 font-medium text-gray-900">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {helpers.map((helper) => (
+                  <tr key={helper.id} className="border-b border-gray-100">
+                    <td className="py-2 font-medium text-gray-900">{helper.name || "-"}</td>
+                    <td className="py-2 text-gray-900">{helper.email}</td>
+                    <td className="py-2 text-gray-900">{helper.phone || "-"}</td>
+                    <td className="py-2 text-gray-900">
+                      <Badge variant={helper.disabled ? "danger" : "success"}>
+                        {helper.disabled ? "Disabled" : "Active"}
+                      </Badge>
+                    </td>
+                    <td className="py-2 text-right">
+                      <button
+                        onClick={() => handleToggleDisabled(helper.id)}
+                        className="text-green-600 hover:text-green-700"
+                      >
+                        {helper.disabled ? "Enable" : "Disable"}
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}
