@@ -28,6 +28,13 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
     }
 
+    if (name && String(name).length > 100) {
+      return NextResponse.json({ error: "Name is too long" }, { status: 400 })
+    }
+    if (phone && String(phone).length > 20) {
+      return NextResponse.json({ error: "Phone is too long" }, { status: 400 })
+    }
+
     const rateCheck = await isRateLimited(`register:${normalizedEmail}`)
     if (!rateCheck.allowed) {
       return NextResponse.json(
