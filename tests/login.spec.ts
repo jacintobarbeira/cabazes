@@ -1,11 +1,39 @@
 import { test, expect } from "@playwright/test"
+import { createPrisma, cleanupTestData } from "./helpers"
+
+const TEST_FARMER = "test-login-farmer@example.com"
+const TEST_CUSTOMER = "test-login-customer@example.com"
+const PASSWORD = "Login123!"
+
+async function createTestUsers() {
+  const prisma = createPrisma()
+  const bcrypt = await import("bcryptjs")
+  const passwordHash = await bcrypt.hash(PASSWORD, 10)
+
+  await prisma.user.create({
+    data: { email: TEST_FARMER, name: "Test Farmer", passwordHash, role: "FARMER", phone: "+1111111111" },
+  })
+  await prisma.user.create({
+    data: { email: TEST_CUSTOMER, name: "Test Customer", passwordHash, role: "CUSTOMER", phone: "+2222222222", address: "123 Main St", city: "Springfield", postalCode: "12345" },
+  })
+  await prisma.$disconnect()
+}
+
+test.beforeEach(async () => {
+  await cleanupTestData()
+  await createTestUsers()
+})
+
+test.afterEach(async () => {
+  await cleanupTestData()
+})
 
 test.describe("Login", () => {
   test("should redirect to farmer dashboard after successful login", async ({ page }) => {
     await page.goto("/login")
 
-    await page.fill('input[name="email"]', "farmer@cabazes.com")
-    await page.fill('input[type="password"]', "Farmer123!")
+    await page.fill('input[name="email"]', TEST_FARMER)
+    await page.fill('input[type="password"]', PASSWORD)
     await page.click('button[type="submit"]')
 
     await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
@@ -26,8 +54,8 @@ test.describe("Login", () => {
   test("should redirect customer to my-orders after login", async ({ page }) => {
     await page.goto("/login")
 
-    await page.fill('input[name="email"]', "alice@example.com")
-    await page.fill('input[type="password"]', "Customer123!")
+    await page.fill('input[name="email"]', TEST_CUSTOMER)
+    await page.fill('input[type="password"]', PASSWORD)
     await page.click('button[type="submit"]')
 
     await expect(page).toHaveURL(/.*my-orders/, { timeout: 10000 })
