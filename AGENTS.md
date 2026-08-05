@@ -15,3 +15,5 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - Always output test results to a file, e.g. `CI=1 npx playwright test > /var/folders/k1/kn91d0k10_d_tdy22qptjctw0000gn/T/opencode/playwright-results.txt 2>&1` (or a `.tmp/` path inside the repo), then use that file to investigate failures instead of re-running and re-parsing terminal output.
 - When investigating failures, read/grep the results file for the exact failing test names and error messages before changing code.
+- When fixing failed tests, re-run only the failed tests. Only run full suites for final confirmation.
+- Tests must not depend on seed data. All test data must be loaded at the beginning of the test and deleted after the test completes.
