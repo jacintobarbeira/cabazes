@@ -87,6 +87,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     },
     async session({ session, token }) {
       if (session.user) {
+        let active = false
+        try {
+          const dbUser = await prisma.user.findUnique({
+            where: { id: token.id as string },
+            select: { disabled: true },
+          })
+          active = !!dbUser && !dbUser.disabled
+        } catch {
+          active = false
+        }
+
+        if (!active) {
+          session.user.id = ""
+          session.user.role = ""
+          session.user.timezone = ""
+          session.user.mustResetPassword = false
+          return session
+        }
+
         session.user.id = token.id as string
         session.user.role = token.role as string
         session.user.timezone = token.timezone as string

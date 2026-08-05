@@ -7,7 +7,7 @@ import { csrfCheck } from "@/lib/csrf"
 export async function GET() {
   const session = await auth()
 
-  if (!session) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
@@ -28,7 +28,7 @@ export async function PATCH(request: Request) {
 
   const session = await auth()
 
-  if (!session) {
+  if (!session?.user?.id) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 

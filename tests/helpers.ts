@@ -63,6 +63,8 @@ const TEST_USER_EMAILS = [
   "test-sender-email@example.com",
   "test-helper-edit@example.com",
   "test-edit-other-farmer@example.com",
+  "test-revoked-farmer@example.com",
+  "test-revoked-deleted@example.com",
 ]
 
 export function createPrisma() {
