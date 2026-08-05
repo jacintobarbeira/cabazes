@@ -28,7 +28,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
     }
 
-    const rateCheck = isRateLimited(`register:${normalizedEmail}`)
+    const rateCheck = await isRateLimited(`register:${normalizedEmail}`)
     if (!rateCheck.allowed) {
       return NextResponse.json(
         { error: `Too many attempts. Try again in ${rateCheck.retryAfter} seconds.` },
@@ -36,7 +36,7 @@ export async function POST(request: Request) {
       )
     }
 
-    recordRateLimitAttempt(`register:${normalizedEmail}`)
+    await recordRateLimitAttempt(`register:${normalizedEmail}`)
 
     const passwordError = validatePassword(password)
     if (passwordError) {

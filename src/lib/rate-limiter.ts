@@ -1,50 +1,57 @@
-interface RateLimitEntry {
-  attempts: number[]
-}
-
-const rateLimitMap = new Map<string, RateLimitEntry>()
+import { prisma } from "./db"
 
 const WINDOW_MS = 15 * 60 * 1000
 const MAX_ATTEMPTS = 10
+const SCOPE = "rate"
 
-export function isRateLimited(key: string): { allowed: boolean; retryAfter?: number } {
-  const now = Date.now()
-  const entry = rateLimitMap.get(key)
+export async function isRateLimited(key: string): Promise<{ allowed: boolean; retryAfter?: number }> {
+  const now = new Date()
+  const entry = await prisma.authThrottle.findUnique({
+    where: { scope_key: { scope: SCOPE, key } },
+  })
 
   if (!entry) {
     return { allowed: true }
   }
 
-  entry.attempts = entry.attempts.filter(t => now - t < WINDOW_MS)
+  const elapsed = now.getTime() - entry.windowStart.getTime()
+  if (elapsed >= WINDOW_MS) {
+    await prisma.authThrottle.delete({ where: { id: entry.id } }).catch(() => {})
+    return { allowed: true }
+  }
 
-  if (entry.attempts.length >= MAX_ATTEMPTS) {
-    const oldestAttempt = entry.attempts[0]
-    const retryAfter = Math.ceil((oldestAttempt + WINDOW_MS - now) / 1000)
+  if (entry.attempts >= MAX_ATTEMPTS) {
+    const retryAfter = Math.ceil((WINDOW_MS - elapsed) / 1000)
     return { allowed: false, retryAfter }
   }
 
   return { allowed: true }
 }
 
-export function recordRateLimitAttempt(key: string) {
-  const now = Date.now()
-  const entry = rateLimitMap.get(key)
+export async function recordRateLimitAttempt(key: string) {
+  const now = new Date()
+  const entry = await prisma.authThrottle.findUnique({
+    where: { scope_key: { scope: SCOPE, key } },
+  })
 
   if (!entry) {
-    rateLimitMap.set(key, { attempts: [now] })
+    await prisma.authThrottle.create({
+      data: { scope: SCOPE, key, attempts: 1, windowStart: now },
+    })
     return
   }
 
-  entry.attempts = entry.attempts.filter(t => now - t < WINDOW_MS)
-  entry.attempts.push(now)
-}
-
-setInterval(() => {
-  const now = Date.now()
-  for (const [key, entry] of rateLimitMap.entries()) {
-    entry.attempts = entry.attempts.filter(t => now - t < WINDOW_MS)
-    if (entry.attempts.length === 0) {
-      rateLimitMap.delete(key)
-    }
+  const elapsed = now.getTime() - entry.windowStart.getTime()
+  if (elapsed >= WINDOW_MS) {
+    await prisma.authThrottle.update({
+      where: { id: entry.id },
+      data: { attempts: 1, windowStart: now },
+    })
+    return
   }
-}, 60 * 1000)
+
+  await prisma.authThrottle.update({
+    where: { id: entry.id },
+    data: { attempts: entry.attempts + 1 },
+  })
+}

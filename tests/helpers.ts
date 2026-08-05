@@ -144,6 +144,18 @@ async function cleanupTestDataOnce() {
     await prisma.user.deleteMany({
       where: { email: { startsWith: TEST_USER_PREFIX } },
     })
+
+    await prisma.authThrottle.deleteMany({
+      where: {
+        key: {
+          in: [
+            ...TEST_USER_EMAILS,
+            ...TEST_USER_EMAILS.map((e) => `login:${e}`),
+            ...TEST_USER_EMAILS.map((e) => `register:${e}`),
+          ],
+        },
+      },
+    })
   } finally {
     await prisma.$disconnect()
   }

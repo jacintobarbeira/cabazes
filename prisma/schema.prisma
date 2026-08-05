@@ -137,6 +137,20 @@ model InviteToken {
   @@unique([basketId, customerId])
 }
 
+model AuthThrottle {
+  id          String    @id @default(cuid())
+  scope       String
+  key         String
+  attempts    Int       @default(0)
+  windowStart DateTime  @default(now())
+  lockedUntil DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([scope, key])
+  @@index([key])
+}
+
 model Account {
   id                String  @id @default(cuid())
   userId            String

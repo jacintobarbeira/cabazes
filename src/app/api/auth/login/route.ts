@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
   }
 
-  const rateCheck = isRateLimited(`login:${email}`)
+  const rateCheck = await isRateLimited(`login:${email}`)
   if (!rateCheck.allowed) {
     auditLog({ event: "LOGIN_RATE_LIMITED", email, retryAfter: rateCheck.retryAfter || 0 })
     return NextResponse.json(
@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     )
   }
 
-  const { locked, retryAfter } = checkLockout(email)
+  const { locked, retryAfter } = await checkLockout(email)
   if (locked) {
     auditLog({ event: "LOGIN_LOCKED", email, retryAfter: retryAfter || 0 })
     return NextResponse.json(

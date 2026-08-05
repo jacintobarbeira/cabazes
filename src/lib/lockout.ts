@@ -1,44 +1,55 @@
-interface LockoutEntry {
-  failedAttempts: number
-  lockedUntil: number | null
-}
-
-const lockoutMap = new Map<string, LockoutEntry>()
+import { prisma } from "./db"
 
 const MAX_FAILED_ATTEMPTS = 5
 const LOCKOUT_DURATION_MS = 15 * 60 * 1000
+const SCOPE = "lockout"
 
-export function checkLockout(email: string): { locked: boolean; retryAfter?: number } {
-  const entry = lockoutMap.get(email)
+export async function checkLockout(email: string): Promise<{ locked: boolean; retryAfter?: number }> {
+  const entry = await prisma.authThrottle.findUnique({
+    where: { scope_key: { scope: SCOPE, key: email } },
+  })
 
   if (!entry) {
     return { locked: false }
   }
 
-  if (entry.lockedUntil && Date.now() < entry.lockedUntil) {
-    const retryAfter = Math.ceil((entry.lockedUntil - Date.now()) / 1000)
+  if (entry.lockedUntil && Date.now() < entry.lockedUntil.getTime()) {
+    const retryAfter = Math.ceil((entry.lockedUntil.getTime() - Date.now()) / 1000)
     return { locked: true, retryAfter }
   }
 
-  if (entry.lockedUntil && Date.now() >= entry.lockedUntil) {
-    lockoutMap.delete(email)
+  if (entry.lockedUntil && Date.now() >= entry.lockedUntil.getTime()) {
+    await prisma.authThrottle.delete({ where: { id: entry.id } }).catch(() => {})
     return { locked: false }
   }
 
   return { locked: false }
 }
 
-export function recordFailedAttempt(email: string) {
-  const entry = lockoutMap.get(email) || { failedAttempts: 0, lockedUntil: null }
-  entry.failedAttempts++
+export async function recordFailedAttempt(email: string) {
+  const entry = await prisma.authThrottle.findUnique({
+    where: { scope_key: { scope: SCOPE, key: email } },
+  })
 
-  if (entry.failedAttempts >= MAX_FAILED_ATTEMPTS) {
-    entry.lockedUntil = Date.now() + LOCKOUT_DURATION_MS
+  const failedAttempts = (entry?.attempts ?? 0) + 1
+  const lockedUntil =
+    failedAttempts >= MAX_FAILED_ATTEMPTS ? new Date(Date.now() + LOCKOUT_DURATION_MS) : null
+
+  if (!entry) {
+    await prisma.authThrottle.create({
+      data: { scope: SCOPE, key: email, attempts: failedAttempts, lockedUntil },
+    })
+    return
   }
 
-  lockoutMap.set(email, entry)
+  await prisma.authThrottle.update({
+    where: { id: entry.id },
+    data: { attempts: failedAttempts, lockedUntil },
+  })
 }
 
-export function resetLockout(email: string) {
-  lockoutMap.delete(email)
+export async function resetLockout(email: string) {
+  await prisma.authThrottle.deleteMany({
+    where: { scope: SCOPE, key: email },
+  })
 }
