@@ -107,7 +107,11 @@ export async function DELETE(
     return NextResponse.json({ error: "Basket not found" }, { status: 404 })
   }
 
-  await prisma.basketItem.delete({ where: { id: itemId } })
+  try {
+    await prisma.basketItem.delete({ where: { id: itemId, basketId: id } })
+  } catch {
+    return NextResponse.json({ error: "Basket item not found" }, { status: 404 })
+  }
 
   const updatedBasket = await prisma.basket.findUnique({
     where: { id },

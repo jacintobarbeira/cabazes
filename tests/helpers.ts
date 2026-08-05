@@ -80,6 +80,8 @@ const TEST_USER_EMAILS = [
   "test-rate-limit-d@example.com",
   "test-login-farmer@example.com",
   "test-login-customer@example.com",
+  "test-idor-farmer-a@example.com",
+  "test-idor-farmer-b@example.com",
 ]
 
 export function createPrisma() {
