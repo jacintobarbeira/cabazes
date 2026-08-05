@@ -6,6 +6,8 @@ import { Input, Textarea } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
 import { formatDate, formatDateOnly } from "@/lib/dates"
+import { useTranslation } from "@/lib/i18n/useTranslation"
+import { LanguageSwitcher } from "@/components/LanguageSwitcher"
 import type { BasketDTO } from "@/types/api"
 
 interface OrderFormProps {
@@ -24,12 +26,13 @@ interface OrderFormProps {
 }
 
 export default function OrderForm({ basket, customer, token }: OrderFormProps) {
+  const { t } = useTranslation()
   const [timezone, setTimezone] = useState("UTC")
   const [deliveryAddress, setDeliveryAddress] = useState(customer.address)
   const [deliveryCity, setDeliveryCity] = useState(customer.city)
   const [deliveryPostalCode, setDeliveryPostalCode] = useState(customer.postalCode)
   const [deliveryNotes, setDeliveryNotes] = useState(customer.notes)
-  const [swapChoices, setSwapChoices] = useState<Record<string, string>>({})
+  const [swaps, setSwaps] = useState<{ baseItemId: string; swapItemId: string }[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
@@ -48,13 +51,6 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
     setError("")
     setLoading(true)
 
-    const swapChoicesArray = Object.entries(swapChoices).map(
-      ([swapGroupId, basketItemId]) => ({
-        swapGroupId,
-        basketItemId,
-      })
-    )
-
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
@@ -66,20 +62,20 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
           deliveryCity,
           deliveryPostalCode,
           deliveryNotes,
-          swapChoices: swapChoicesArray,
+          swapChoices: swaps.filter((s) => s.baseItemId && s.swapItemId),
         }),
       })
 
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || "Failed to place order")
+        setError(data.error || t("orderForm.failedToPlace"))
         return
       }
 
       setSuccess(true)
     } catch {
-      setError("An error occurred. Please try again.")
+      setError(t("orderForm.failedToPlace"))
     } finally {
       setLoading(false)
     }
@@ -91,10 +87,9 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
         <Card className="w-full max-w-md">
           <CardContent className="pt-8 text-center">
             <div className="text-4xl mb-4">🎉</div>
-            <h2 className="text-xl font-semibold text-gray-900">Order Placed!</h2>
+            <h2 className="text-xl font-semibold text-gray-900">{t("orderForm.orderPlaced")}</h2>
             <p className="mt-2 text-gray-900">
-              Your <strong>{basket.name}</strong> will be delivered on{" "}
-              {formatDateOnly(basket.deliveryDay, timezone)}.
+              {t("orderForm.deliveredOn", { name: basket.name, date: formatDateOnly(basket.deliveryDay, timezone) })}
             </p>
           </CardContent>
         </Card>
@@ -102,12 +97,32 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
     )
   }
 
-  const baseItems = basket.items.filter((item) => item.isBase && !item.swapGroupId)
-  const swapGroups = basket.swapGroups
+  const baseItems = basket.items.filter((item) => item.isBase)
+  const swapItems = basket.items.filter((item) => !item.isBase)
+  const maxSwaps = basket.allowedSwaps
+
+  const addSwap = () => {
+    if (swaps.length >= maxSwaps) return
+    setSwaps([...swaps, { baseItemId: "", swapItemId: "" }])
+  }
+
+  const updateSwap = (index: number, field: "baseItemId" | "swapItemId", value: string) => {
+    setSwaps((prev) => prev.map((s, i) => (i === index ? { ...s, [field]: value } : s)))
+  }
+
+  const removeSwap = (index: number) => {
+    setSwaps((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const chosenBaseIds = swaps.map((s) => s.baseItemId)
+  const chosenSwapIds = swaps.map((s) => s.swapItemId)
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
+        <div className="flex justify-end">
+          <LanguageSwitcher />
+        </div>
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">{basket.name}</CardTitle>
@@ -119,59 +134,95 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
             <div className="flex items-center justify-between mb-4">
               <Badge variant="success">€{basket.price}</Badge>
               <span className="text-sm text-gray-900">
-                Order by: {formatDate(basket.orderDeadline, timezone)}
+                {t("orderForm.orderBy")}: {formatDate(basket.orderDeadline, timezone)}
               </span>
             </div>
 
             <div className="mb-6">
-              <h3 className="font-medium text-gray-900 mb-2">Included Items</h3>
+              <h3 className="font-medium text-gray-900 mb-2">{t("orderForm.includedItems")}</h3>
               <ul className="space-y-1">
                 {baseItems.map((item) => (
                   <li key={item.id} className="text-sm text-gray-900">
-                    {item.quantity}x {item.productName}
+                    {item.productName}
                   </li>
                 ))}
               </ul>
             </div>
 
-            {swapGroups.length > 0 && (
+            {swapItems.length > 0 && (
               <div className="mb-6">
-                <h3 className="font-medium text-gray-900 mb-2">Swap Options</h3>
+                <h3 className="font-medium text-gray-900 mb-2">{t("orderForm.swapOptions")}</h3>
                 <p className="text-sm text-gray-900 mb-3">
-                  Choose your preferred alternatives
+                  {t("orderForm.swapInstructions", { count: maxSwaps })}
                 </p>
-                {swapGroups.map((group) => (
-                  <div key={group.id} className="mb-4 p-3 bg-gray-50 rounded-lg">
-                    <p className="text-sm font-medium text-gray-900 mb-2">
-                      {group.name || "Swap Group"} (pick {group.maxChoices})
-                    </p>
-                    <div className="space-y-1">
-                      {group.items.map((item) => (
-                        <label
-                          key={item.id}
-                          className="flex items-center gap-2 cursor-pointer"
+
+                <div className="flex flex-wrap gap-2 mb-4">
+                  {swapItems.map((item) => (
+                    <span
+                      key={item.id}
+                      className="inline-flex items-center gap-1 px-2 py-1 bg-green-50 text-green-700 text-sm rounded"
+                    >
+                      {item.productName}
+                    </span>
+                  ))}
+                </div>
+
+                {swaps.map((swap, index) => (
+                  <div key={index} className="mb-3 p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-gray-900">{t("orderForm.swapLabel", { number: index + 1 })}</span>
+                      <button
+                        type="button"
+                        onClick={() => removeSwap(index)}
+                        className="text-red-600 text-sm"
+                      >
+                        {t("orderForm.remove")}
+                      </button>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs text-gray-900 mb-1">{t("orderForm.removeBaseItem")}</label>
+                        <select
+                          value={swap.baseItemId}
+                          onChange={(e) => updateSwap(index, "baseItemId", e.target.value)}
+                          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
                         >
-                          <input
-                            type="radio"
-                            name={`swap-${group.id}`}
-                            value={item.id}
-                            checked={swapChoices[group.id] === item.id}
-                            onChange={() =>
-                              setSwapChoices((prev) => ({
-                                ...prev,
-                                [group.id]: item.id,
-                              }))
-                            }
-                            className="h-4 w-4 text-green-600 focus:ring-green-500"
-                          />
-                          <span className="text-sm text-gray-900">
-                            {item.quantity}x {item.productName}
-                          </span>
-                        </label>
-                      ))}
+                          <option value="">{t("orderForm.selectBaseItem")}</option>
+                          {baseItems
+                            .filter((item) => item.id === swap.baseItemId || !chosenBaseIds.includes(item.id))
+                            .map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.productName}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="block text-xs text-gray-900 mb-1">{t("orderForm.addSwapItem")}</label>
+                        <select
+                          value={swap.swapItemId}
+                          onChange={(e) => updateSwap(index, "swapItemId", e.target.value)}
+                          className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                        >
+                          <option value="">{t("orderForm.selectSwapItem")}</option>
+                          {swapItems
+                            .filter((item) => item.id === swap.swapItemId || !chosenSwapIds.includes(item.id))
+                            .map((item) => (
+                              <option key={item.id} value={item.id}>
+                                {item.productName}
+                              </option>
+                            ))}
+                        </select>
+                      </div>
                     </div>
                   </div>
                 ))}
+
+                {swaps.length < maxSwaps && (
+                  <Button type="button" variant="outline" onClick={addSwap}>
+                    {t("orderForm.addSwap")}
+                  </Button>
+                )}
               </div>
             )}
           </CardContent>
@@ -179,9 +230,9 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
 
         <Card>
           <CardHeader>
-            <CardTitle>Delivery Details</CardTitle>
+            <CardTitle>{t("orderForm.deliveryDetails")}</CardTitle>
             <p className="text-sm text-gray-900">
-              Ordering as <strong>{customer.name}</strong> ({customer.email})
+              {t("orderForm.orderingAs", { name: customer.name, email: customer.email })}
             </p>
           </CardHeader>
           <CardContent>
@@ -193,7 +244,7 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
               )}
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-1">
-                  Delivery Address *
+                  {t("orderForm.deliveryAddress")}
                 </label>
                 <Input
                   value={deliveryAddress}
@@ -204,7 +255,7 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-900 mb-1">
-                    City
+                    {t("common.city")}
                   </label>
                   <Input
                     value={deliveryCity}
@@ -213,7 +264,7 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
                 </div>
                 <div>
                   <label className="block text-sm font-medium text-gray-900 mb-1">
-                    Postal Code
+                    {t("common.postalCode")}
                   </label>
                   <Input
                     value={deliveryPostalCode}
@@ -223,7 +274,7 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-1">
-                  Delivery Notes
+                  {t("orderForm.deliveryNotes")}
                 </label>
                 <Textarea
                   value={deliveryNotes}
@@ -232,7 +283,7 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
                 />
               </div>
               <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? "Placing order..." : "Place Order"}
+                {loading ? t("orderForm.placingOrder") : t("orderForm.placeOrder")}
               </Button>
             </form>
           </CardContent>

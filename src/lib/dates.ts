@@ -33,15 +33,23 @@ export function formatDate(
   options?: Intl.DateTimeFormatOptions
 ): string {
   const d = typeof date === "string" ? new Date(date) : date
-  const defaultOptions: Intl.DateTimeFormatOptions = {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
     year: "numeric",
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     timeZone: timezone,
-  }
-  return d.toLocaleString("en-GB", { ...defaultOptions, ...options })
+    ...options,
+  })
+  const parts = fmt.formatToParts(d)
+  const day = parts.find((p) => p.type === "day")?.value || ""
+  const month = parts.find((p) => p.type === "month")?.value || ""
+  const year = parts.find((p) => p.type === "year")?.value || ""
+  const hour = parts.find((p) => p.type === "hour")?.value || ""
+  const minute = parts.find((p) => p.type === "minute")?.value || ""
+  const literal = parts.find((p) => p.type === "literal")?.value || " "
+  return `${day} ${month} ${year}${literal}${hour}:${minute}`
 }
 
 export function formatDateOnly(
@@ -49,12 +57,17 @@ export function formatDateOnly(
   timezone: string = "UTC"
 ): string {
   const d = typeof date === "string" ? new Date(date) : date
-  return d.toLocaleDateString("en-GB", {
+  const fmt = new Intl.DateTimeFormat("en-GB", {
     year: "numeric",
     month: "short",
     day: "numeric",
     timeZone: timezone,
   })
+  const parts = fmt.formatToParts(d)
+  const day = parts.find((p) => p.type === "day")?.value || ""
+  const month = parts.find((p) => p.type === "month")?.value || ""
+  const year = parts.find((p) => p.type === "year")?.value || ""
+  return `${day} ${month} ${year}`
 }
 
 export function formatTimeOnly(

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/db"
 import { toUserDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
+import { csrfCheck } from "@/lib/csrf"
 
 export async function GET() {
   const session = await auth()
@@ -22,6 +23,9 @@ export async function GET() {
 }
 
 export async function PATCH(request: Request) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
@@ -36,6 +40,7 @@ export async function PATCH(request: Request) {
       name: body.name,
       phone: body.phone,
       timezone: body.timezone,
+      senderEmail: body.senderEmail,
     },
   })
 

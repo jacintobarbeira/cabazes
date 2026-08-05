@@ -19,7 +19,7 @@ test.describe("Client-Side Constraint Checks", () => {
 
     await page.goto("/farmer/baskets/new")
     await page.fill('input[placeholder="e.g. Summer Basket"]', "Test Basket")
-    await page.fill('input[type="number"]', "20")
+    await page.locator('input[type="number"]').nth(0).fill("20")
 
     const inputs = await page.locator('input[type="datetime-local"], input[type="date"]').all()
     const deadlineInput = inputs[0]

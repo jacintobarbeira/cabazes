@@ -5,24 +5,32 @@ import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 import type { ProductDTO } from "@/types/api"
 
 export default function ProductsPage() {
+  const { t } = useTranslation()
   const [products, setProducts] = useState<ProductDTO[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [category, setCategory] = useState("")
-  const [unit, setUnit] = useState("unit")
   const [description, setDescription] = useState("")
   const [formError, setFormError] = useState("")
 
   const fetchProducts = () => {
     fetch("/api/products")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(t("products.failedToFetch"))
+        return res.json()
+      })
       .then((data) => {
         setProducts(data)
+        setLoading(false)
+      })
+      .catch(() => {
+        setProducts([])
         setLoading(false)
       })
   }
@@ -41,7 +49,7 @@ export default function ProductsPage() {
     const res = await fetch(url, {
       method,
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ name, category, unit, description }),
+      body: JSON.stringify({ name, category, description }),
     })
 
     if (res.ok) {
@@ -49,7 +57,7 @@ export default function ProductsPage() {
       fetchProducts()
     } else {
       const data = await res.json()
-      setFormError(data.error || "Failed to save product")
+      setFormError(data.error || t("products.failedToSave"))
     }
   }
 
@@ -57,7 +65,6 @@ export default function ProductsPage() {
     setEditingId(product.id)
     setName(product.name)
     setCategory(product.category || "")
-    setUnit(product.unit)
     setDescription(product.description || "")
     setShowForm(true)
   }
@@ -72,26 +79,25 @@ export default function ProductsPage() {
     setEditingId(null)
     setName("")
     setCategory("")
-    setUnit("unit")
     setDescription("")
     setFormError("")
   }
 
-  if (loading) return <p className="text-gray-600">Loading...</p>
+  if (loading) return <p className="text-gray-900">{t("common.loading")}</p>
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Products</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t("products.title")}</h1>
         <Button onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ Add Product"}
+          {showForm ? t("products.cancel") : t("products.addProduct")}
         </Button>
       </div>
 
       {showForm && (
         <Card>
           <CardHeader>
-            <CardTitle>{editingId ? "Edit Product" : "New Product"}</CardTitle>
+            <CardTitle>{editingId ? t("products.editProduct") : t("products.newProduct")}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -102,36 +108,23 @@ export default function ProductsPage() {
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">Name *</label>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">{t("products.nameLabel")}</label>
                   <Input value={name} onChange={(e) => setName(e.target.value)} required />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">Category</label>
-                  <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder="vegetable, fruit, herb..." />
+                  <label className="block text-sm font-medium text-gray-900 mb-1">{t("products.category")}</label>
+                  <Input value={category} onChange={(e) => setCategory(e.target.value)} placeholder={t("products.categoryPlaceholder")} />
                 </div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">Unit</label>
-                  <select
-                    value={unit}
-                    onChange={(e) => setUnit(e.target.value)}
-                    className="flex h-10 w-full rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
-                  >
-                    <option value="unit">Unit</option>
-                    <option value="kg">Kg</option>
-                    <option value="bunch">Bunch</option>
-                    <option value="box">Box</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">Description</label>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">{t("products.description")}</label>
                   <Input value={description} onChange={(e) => setDescription(e.target.value)} />
                 </div>
               </div>
               <div className="flex gap-2">
-                <Button type="submit">{editingId ? "Update" : "Create"}</Button>
-                <Button type="button" variant="outline" onClick={resetForm}>Cancel</Button>
+                <Button type="submit">{editingId ? t("products.update") : t("products.create")}</Button>
+                <Button type="button" variant="outline" onClick={resetForm}>{t("products.cancel")}</Button>
               </div>
             </form>
           </CardContent>
@@ -141,16 +134,15 @@ export default function ProductsPage() {
       <Card>
         <CardContent className="pt-6">
           {products.length === 0 ? (
-            <p className="text-gray-900 text-sm">No products yet.</p>
+            <p className="text-gray-900 text-sm">{t("products.noProducts")}</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 font-medium text-gray-800">Name</th>
-                  <th className="text-left py-2 font-medium text-gray-800">Category</th>
-                  <th className="text-left py-2 font-medium text-gray-800">Unit</th>
-                  <th className="text-left py-2 font-medium text-gray-800">Status</th>
-                  <th className="text-right py-2 font-medium text-gray-800">Actions</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("products.colName")}</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("products.colCategory")}</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("products.colStatus")}</th>
+                  <th className="text-right py-2 font-medium text-gray-900">{t("products.colActions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -158,10 +150,9 @@ export default function ProductsPage() {
                   <tr key={product.id} className="border-b border-gray-100">
                     <td className="py-2 font-medium text-gray-900">{product.name}</td>
                     <td className="py-2 text-gray-900">{product.category || "-"}</td>
-                    <td className="py-2 text-gray-900">{product.unit}</td>
                     <td className="py-2 text-gray-900">
                       <Badge variant={product.active ? "success" : "default"}>
-                        {product.active ? "Active" : "Inactive"}
+                        {product.active ? t("common.active") : t("common.inactive")}
                       </Badge>
                     </td>
                     <td className="py-2 text-right">
@@ -169,13 +160,13 @@ export default function ProductsPage() {
                         onClick={() => handleEdit(product)}
                         className="text-green-600 hover:text-green-700 mr-3"
                       >
-                        Edit
+                        {t("common.edit")}
                       </button>
                       <button
                         onClick={() => handleDelete(product.id)}
                         className="text-red-600 hover:text-red-700"
                       >
-                        Delete
+                        {t("common.delete")}
                       </button>
                     </td>
                   </tr>

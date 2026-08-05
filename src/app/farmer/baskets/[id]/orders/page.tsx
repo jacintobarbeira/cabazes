@@ -5,6 +5,7 @@ import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
 import { Button } from "@/components/Button"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatDate } from "@/lib/dates"
 import type { OrderDTO } from "@/types/api"
 
@@ -16,6 +17,7 @@ const statusVariant: Record<string, "warning" | "success" | "info" | "danger"> =
 }
 
 export default function BasketOrdersPage({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useTranslation()
   const { data: session } = useSession()
   const timezone = session?.user?.timezone || "UTC"
   const [orders, setOrders] = useState<OrderDTO[]>([])
@@ -26,11 +28,15 @@ export default function BasketOrdersPage({ params }: { params: Promise<{ id: str
     params.then((p) => {
       setBasketId(p.id)
       fetch(`/api/orders?basketId=${p.id}`)
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to load")
+          return res.json()
+        })
         .then((data) => {
           setOrders(data)
           setLoading(false)
         })
+        .catch(() => setLoading(false))
     })
   }, [params])
 
@@ -50,20 +56,20 @@ export default function BasketOrdersPage({ params }: { params: Promise<{ id: str
         prev.map((o) => (o.id === orderId ? { ...o, status: "CONFIRMED" as const } : o))
       )
     } catch (err) {
-      alert("Failed to confirm order")
+      alert(t("basketOrders.confirm"))
     }
   }
 
-  if (loading) return <p className="text-gray-900">Loading...</p>
+  if (loading) return <p className="text-gray-900">{t("common.loading")}</p>
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Orders</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t("basketOrders.title")}</h1>
 
       {orders.length === 0 ? (
         <Card>
           <CardContent className="pt-6 text-gray-900 text-sm">
-            No orders yet for this basket.
+            {t("basketOrders.noOrders")}
           </CardContent>
         </Card>
       ) : (
@@ -73,17 +79,17 @@ export default function BasketOrdersPage({ params }: { params: Promise<{ id: str
               <CardHeader className="pb-2">
                 <div className="flex items-center justify-between">
                   <div>
-                    <CardTitle className="text-base">{order.customerName || "Unknown"}</CardTitle>
+                    <CardTitle className="text-base">{order.customerName || t("basketOrders.unknown")}</CardTitle>
                     <p className="text-sm text-gray-900">{order.customerEmail}</p>
                   </div>
                   <div className="flex items-center gap-2">
                     {order.status === "PENDING" && (
                       <Button size="sm" onClick={() => handleConfirm(order.id)}>
-                        Confirm
+                        {t("basketOrders.confirm")}
                       </Button>
                     )}
                     <Badge variant={statusVariant[order.status] || "default"}>
-                      {order.status}
+                      {t("statuses." + order.status)}
                     </Badge>
                   </div>
                 </div>
@@ -91,33 +97,33 @@ export default function BasketOrdersPage({ params }: { params: Promise<{ id: str
               <CardContent>
                 <div className="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-900">Phone:</span>{" "}
+                    <span className="text-gray-900">{t("basketOrders.phone")}</span>{" "}
                     <span className="text-gray-900">{order.customerPhone || "-"}</span>
                   </div>
                   <div>
-                    <span className="text-gray-900">Address:</span>{" "}
+                    <span className="text-gray-900">{t("basketOrders.address")}</span>{" "}
                     <span className="text-gray-900">{order.deliveryAddress}</span>
                   </div>
                   {order.deliveryCity && (
                     <div>
-                      <span className="text-gray-900">City:</span>{" "}
+                      <span className="text-gray-900">{t("basketOrders.city")}</span>{" "}
                       <span className="text-gray-900">{order.deliveryCity}</span>
                     </div>
                   )}
                   {order.deliveryNotes && (
                     <div>
-                      <span className="text-gray-900">Notes:</span>{" "}
+                      <span className="text-gray-900">{t("basketOrders.notes")}</span>{" "}
                       <span className="text-gray-900">{order.deliveryNotes}</span>
                     </div>
                   )}
                 </div>
                 {order.swapChoices.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-gray-100">
-                    <span className="text-sm text-gray-900">Swap choices:</span>
+                    <span className="text-sm text-gray-900">{t("basketOrders.swapChoices")}</span>
                     <ul className="mt-1 space-y-1">
                       {order.swapChoices.map((choice) => (
                         <li key={choice.id} className="text-sm text-gray-900">
-                          {choice.swapGroupName}: {choice.chosenItemName}
+                          {choice.baseItemName} → {choice.swapItemName}
                         </li>
                       ))}
                     </ul>

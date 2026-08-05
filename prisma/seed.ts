@@ -87,16 +87,16 @@ async function main() {
   })
 
   const products = [
-    { name: "Carrots", category: "vegetable", unit: "bunch" },
-    { name: "Onions", category: "vegetable", unit: "kg" },
-    { name: "Lettuce", category: "vegetable", unit: "unit" },
-    { name: "Tomatoes", category: "vegetable", unit: "kg" },
-    { name: "Potatoes", category: "vegetable", unit: "kg" },
-    { name: "Oranges", category: "fruit", unit: "kg" },
-    { name: "Basil", category: "herb", unit: "bunch" },
-    { name: "Garlic", category: "vegetable", unit: "unit" },
-    { name: "Peppers", category: "vegetable", unit: "kg" },
-    { name: "Zucchini", category: "vegetable", unit: "kg" },
+    { name: "Carrots", category: "vegetable" },
+    { name: "Onions", category: "vegetable" },
+    { name: "Lettuce", category: "vegetable" },
+    { name: "Tomatoes", category: "vegetable" },
+    { name: "Potatoes", category: "vegetable" },
+    { name: "Oranges", category: "fruit" },
+    { name: "Basil", category: "herb" },
+    { name: "Garlic", category: "vegetable" },
+    { name: "Peppers", category: "vegetable" },
+    { name: "Zucchini", category: "vegetable" },
   ]
 
   for (const product of products) {
@@ -104,7 +104,7 @@ async function main() {
       where: {
         name_farmerId: { name: product.name, farmerId: farmer.id },
       },
-      update: { category: product.category, unit: product.unit },
+      update: { category: product.category },
       create: {
         ...product,
         farmerId: farmer.id,

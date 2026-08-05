@@ -3,11 +3,16 @@ import { toOrderDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { csrfCheck } from "@/lib/csrf"
+import { sendDeliveredNotification } from "@/lib/email"
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id) {
@@ -29,7 +34,7 @@ export async function PATCH(
 
   const order = await prisma.order.findUnique({
     where: { id },
-    include: { basket: true },
+    include: { basket: { include: { farmer: { select: { senderEmail: true } } } } },
   })
 
   if (!order) {
@@ -93,19 +98,44 @@ export async function PATCH(
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  const updated = await prisma.order.update({
-    where: { id },
+  const result = await prisma.order.updateMany({
+    where: { id, status: order.status },
     data: { status: newStatus },
+  })
+
+  if (result.count === 0) {
+    return NextResponse.json(
+      { error: `Cannot change order from ${order.status} to ${newStatus}` },
+      { status: 409 }
+    )
+  }
+
+  const updated = await prisma.order.findUniqueOrThrow({
+    where: { id },
     include: {
-      basket: { select: { name: true } },
+      basket: {
+        select: {
+          name: true,
+          items: { include: { product: true } },
+        },
+      },
       swapChoices: {
         include: {
-          swapGroup: { select: { name: true } },
-          basketItem: { include: { product: true } },
+          baseItem: { include: { product: true } },
+          swapItem: { include: { product: true } },
         },
       },
     },
   })
+
+  if (newStatus === "DELIVERED" && order.customerEmail) {
+    sendDeliveredNotification({
+      to: order.customerEmail,
+      customerName: order.customerName || order.customerEmail,
+      basketName: order.basket.name,
+      from: order.basket.farmer?.senderEmail || undefined,
+    }).catch(() => {})
+  }
 
   return NextResponse.json(toOrderDTO(updated))
 }

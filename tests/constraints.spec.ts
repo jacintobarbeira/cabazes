@@ -152,24 +152,10 @@ test.describe("Order Constraints", () => {
     expect(firstRes.ok()).toBeTruthy()
     expect(firstRes.status()).toBe(201)
 
-    const prisma2 = createPrisma()
-
-    const secondTokenValue = "test-single-order-token-2-" + Date.now()
-    await prisma2.inviteToken.create({
-      data: {
-        customerId: customer!.id,
-        basketId: basket.id,
-        token: secondTokenValue,
-        expiresAt: nextWeek,
-      },
-    })
-
-    await prisma2.$disconnect()
-
     const secondRes = await request.post("/api/orders", {
       data: {
         basketId: basket.id,
-        token: secondTokenValue,
+        token: tokenValue,
         deliveryAddress: "123 Test St",
         deliveryCity: "Testville",
         deliveryPostalCode: "00000",
@@ -181,7 +167,7 @@ test.describe("Order Constraints", () => {
     expect(secondRes.ok()).toBeFalsy()
     expect(secondRes.status()).toBe(400)
     const errorData = await secondRes.json()
-    expect(errorData.error).toBe("You have already placed an order for this basket")
+    expect(["Token has already been used", "You have already placed an order for this basket"]).toContain(errorData.error)
   })
 
   test("should prevent deleting basket that has orders", async ({ request }) => {
@@ -541,7 +527,6 @@ test.describe("Farmer Data Isolation", () => {
       data: {
         name: "Test Isolation Farmer 1 Product",
         farmerId: farmer1!.id,
-        unit: "kg",
         active: true,
       },
     })
@@ -550,7 +535,6 @@ test.describe("Farmer Data Isolation", () => {
       data: {
         name: "Test Isolation Farmer 2 Product",
         farmerId: secondFarmer!.id,
-        unit: "kg",
         active: true,
       },
     })

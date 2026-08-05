@@ -5,10 +5,12 @@ import { useSession } from "next-auth/react"
 import { Button } from "@/components/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatDateOnly } from "@/lib/dates"
 import type { InviteTokenDTO, UserDTO } from "@/types/api"
 
 export default function BasketLinksPage({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useTranslation()
   const { data: session } = useSession()
   const timezone = session?.user?.timezone || "UTC"
   const [tokens, setTokens] = useState<InviteTokenDTO[]>([])
@@ -16,20 +18,29 @@ export default function BasketLinksPage({ params }: { params: Promise<{ id: stri
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([])
   const [loading, setLoading] = useState(true)
   const [generating, setGenerating] = useState(false)
+  const [sendingIds, setSendingIds] = useState<Set<string>>(new Set())
+  const [sentIds, setSentIds] = useState<Set<string>>(new Set())
   const [basketId, setBasketId] = useState("")
 
   useEffect(() => {
     params.then((p) => {
       setBasketId(p.id)
       fetch(`/api/baskets/${p.id}/links`)
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to load")
+          return res.json()
+        })
         .then((data) => {
           setTokens(data)
           setLoading(false)
         })
+        .catch(() => setLoading(false))
 
       fetch("/api/customers")
-        .then((res) => res.json())
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to load")
+          return res.json()
+        })
         .then((data) => setCustomers(data))
     })
   }, [params])
@@ -75,31 +86,63 @@ export default function BasketLinksPage({ params }: { params: Promise<{ id: stri
     navigator.clipboard.writeText(links)
   }
 
-  if (loading) return <p className="text-gray-900">Loading...</p>
+  const sendEmail = async (tokenId: string) => {
+    if (sendingIds.has(tokenId)) return
+    setSendingIds((prev) => new Set(prev).add(tokenId))
+    try {
+      const res = await fetch(`/api/baskets/${basketId}/links/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tokenIds: [tokenId] }),
+      })
+      if (res.ok) {
+        setSentIds((prev) => new Set(prev).add(tokenId))
+      }
+    } finally {
+      setSendingIds((prev) => {
+        const next = new Set(prev)
+        next.delete(tokenId)
+        return next
+      })
+    }
+  }
+
+  const sendAllEmail = async () => {
+    const activeTokens = tokens.filter((t) => !t.usedAt)
+    const ids = activeTokens.map((t) => t.id)
+    setSendingIds(new Set(ids))
+    try {
+      const res = await fetch(`/api/baskets/${basketId}/links/send-email`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tokenIds: ids }),
+      })
+      if (res.ok) {
+        setSentIds(new Set(ids))
+      }
+    } finally {
+      setSendingIds(new Set())
+    }
+  }
+
+  if (loading) return <p className="text-gray-900">{t("common.loading")}</p>
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Invite Links</h1>
-        {tokens.length > 0 && (
-          <Button variant="outline" onClick={copyAllLinks}>
-            Copy All Links
-          </Button>
-        )}
-      </div>
+      <h1 className="text-2xl font-bold text-gray-900">{t("basketLinks.title")}</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle>Generate Links</CardTitle>
-          <p className="text-sm text-gray-900">Select customers to generate personalized order links</p>
+          <CardTitle>{t("basketLinks.generateLinks")}</CardTitle>
+          <p className="text-sm text-gray-900">{t("basketLinks.selectCustomers")}</p>
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-between mb-3">
             <span className="text-sm text-gray-900">
-              {selectedCustomers.length} selected
+              {selectedCustomers.length} {t("common.selected")}
             </span>
             <button onClick={selectAll} className="text-sm text-green-600 hover:text-green-700">
-              Select All
+              {t("basketLinks.selectAll")}
             </button>
           </div>
 
@@ -116,7 +159,7 @@ export default function BasketLinksPage({ params }: { params: Promise<{ id: stri
                   className="h-4 w-4 text-green-600 rounded border-gray-300"
                 />
                 <div>
-                  <span className="text-sm font-medium">{customer.name || "No name"}</span>
+                  <span className="text-sm font-medium text-gray-900">{customer.name || t("basketLinks.noName")}</span>
                   <span className="text-sm text-gray-900 ml-2">{customer.email}</span>
                 </div>
               </label>
@@ -124,7 +167,7 @@ export default function BasketLinksPage({ params }: { params: Promise<{ id: stri
           </div>
 
           <Button onClick={generateLinks} disabled={selectedCustomers.length === 0 || generating}>
-            {generating ? "Generating..." : `Generate ${selectedCustomers.length} Links`}
+            {generating ? t("basketLinks.generating") : t("basketLinks.generateCount", { count: selectedCustomers.length })}
           </Button>
         </CardContent>
       </Card>
@@ -132,44 +175,68 @@ export default function BasketLinksPage({ params }: { params: Promise<{ id: stri
       {tokens.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Generated Links ({tokens.length})</CardTitle>
+            <CardTitle>{t("basketLinks.generatedCount", { count: tokens.length })}</CardTitle>
           </CardHeader>
           <CardContent>
+            {tokens.length > 0 && (
+              <div className="flex gap-2 mb-4">
+                <Button variant="outline" onClick={copyAllLinks}>
+                  {t("basketLinks.copyAll")}
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={sendAllEmail}
+                  disabled={sendingIds.size > 0 || tokens.filter((t) => !t.usedAt).length === 0}
+                >
+                  {sendingIds.size > 0 ? t("basketLinks.sending", { count: sendingIds.size }) : t("basketLinks.sendAllEmail")}
+                </Button>
+              </div>
+            )}
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 font-medium text-gray-800">Customer</th>
-                  <th className="text-left py-2 font-medium text-gray-800">Status</th>
-                  <th className="text-left py-2 font-medium text-gray-800">Expires</th>
-                  <th className="text-right py-2 font-medium text-gray-800">Actions</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("basketLinks.colCustomer")}</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("basketLinks.colStatus")}</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("basketLinks.colExpires")}</th>
+                  <th className="text-right py-2 font-medium text-gray-900">{t("basketLinks.colActions")}</th>
                 </tr>
               </thead>
               <tbody>
-                {tokens.map((t) => (
-                  <tr key={t.id} className="border-b border-gray-100">
+                {tokens.map((token) => (
+                  <tr key={token.id} className="border-b border-gray-100">
                     <td className="py-2 text-gray-900">
                       <div>
-                        <span className="font-medium">{t.customerName || "Unknown"}</span>
-                        <div className="text-xs text-gray-900">{t.customerEmail}</div>
+                        <span className="font-medium">{token.customerName || t("basketOrders.unknown")}</span>
+                        <div className="text-xs text-gray-900">{token.customerEmail}</div>
                       </div>
                     </td>
                     <td className="py-2 text-gray-900">
-                      <Badge variant={t.usedAt ? "default" : "success"}>
-                        {t.usedAt ? "Used" : "Active"}
+                      <Badge variant={token.usedAt ? "default" : "success"}>
+                        {token.usedAt ? t("basketLinks.used") : t("basketLinks.active")}
                       </Badge>
                     </td>
                     <td className="py-2 text-gray-900">
-                      {formatDateOnly(t.expiresAt, timezone)}
+                      {formatDateOnly(token.expiresAt, timezone)}
                     </td>
                     <td className="py-2 text-right">
-                      {!t.usedAt && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => copyLink(t.token)}
-                        >
-                          Copy
-                        </Button>
+                      {!token.usedAt && (
+                        <>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => copyLink(token.token)}
+                          >
+                            {t("common.copy")}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => sendEmail(token.id)}
+                            disabled={sendingIds.has(token.id)}
+                          >
+                            {sentIds.has(token.id) ? t("basketLinks.sent") : sendingIds.has(token.id) ? "..." : t("basketLinks.email")}
+                          </Button>
+                        </>
                       )}
                     </td>
                   </tr>

@@ -3,6 +3,7 @@ import { toOrderDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { csrfCheck } from "@/lib/csrf"
 
 export async function GET(request: Request) {
   const session = await auth()
@@ -37,11 +38,16 @@ export async function GET(request: Request) {
   const orders = await prisma.order.findMany({
     where,
     include: {
-      basket: { select: { name: true } },
+      basket: {
+        select: {
+          name: true,
+          items: { include: { product: true } },
+        },
+      },
       swapChoices: {
         include: {
-          swapGroup: { select: { name: true } },
-          basketItem: { include: { product: true } },
+          baseItem: { include: { product: true } },
+          swapItem: { include: { product: true } },
         },
       },
     },
@@ -52,6 +58,9 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const body = await request.json()
   const {
     basketId,
@@ -72,7 +81,10 @@ export async function POST(request: Request) {
 
   const inviteToken = await prisma.inviteToken.findUnique({
     where: { token },
-    include: { basket: true, customer: true },
+    include: {
+      basket: { include: { items: true } },
+      customer: true,
+    },
   })
 
   if (!inviteToken) {
@@ -101,6 +113,52 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Token has no associated customer" }, { status: 400 })
   }
 
+  const basketItems = inviteToken.basket.items
+  const baseItems = basketItems.filter((i) => i.isBase)
+  const swapItems = basketItems.filter((i) => !i.isBase)
+
+  if (swapChoices && swapChoices.length > 0) {
+    if (swapChoices.length > inviteToken.basket.allowedSwaps) {
+      return NextResponse.json(
+        { error: `You can choose at most ${inviteToken.basket.allowedSwaps} swaps` },
+        { status: 400 }
+      )
+    }
+
+    const baseIds = baseItems.map((i) => i.id)
+    const swapIds = swapItems.map((i) => i.id)
+    const chosenBaseIds = swapChoices.map((c: { baseItemId: string }) => c.baseItemId)
+    const chosenSwapIds = swapChoices.map((c: { swapItemId: string }) => c.swapItemId)
+
+    if (chosenBaseIds.some((id: string) => !baseIds.includes(id))) {
+      return NextResponse.json(
+        { error: "One or more chosen base items are not part of this basket" },
+        { status: 400 }
+      )
+    }
+
+    if (chosenSwapIds.some((id: string) => !swapIds.includes(id))) {
+      return NextResponse.json(
+        { error: "One or more chosen swap items are not part of this basket" },
+        { status: 400 }
+      )
+    }
+
+    if (new Set(chosenBaseIds).size !== chosenBaseIds.length) {
+      return NextResponse.json(
+        { error: "Each base item can only be swapped out once" },
+        { status: 400 }
+      )
+    }
+
+    if (new Set(chosenSwapIds).size !== chosenSwapIds.length) {
+      return NextResponse.json(
+        { error: "Each swap item can only be chosen once" },
+        { status: 400 }
+      )
+    }
+  }
+
   const order = await prisma.$transaction(async (tx) => {
     const existingOrder = await tx.order.findFirst({
       where: { customerId: customer.id, basketId },
@@ -122,21 +180,26 @@ export async function POST(request: Request) {
         deliveryCity,
         deliveryPostalCode,
         deliveryNotes,
-        swapChoices: swapChoices
+        swapChoices: swapChoices && swapChoices.length > 0
           ? {
-              create: swapChoices.map((choice: { swapGroupId: string; basketItemId: string }) => ({
-                swapGroupId: choice.swapGroupId,
-                basketItemId: choice.basketItemId,
+              create: swapChoices.map((choice: { baseItemId: string; swapItemId: string }) => ({
+                baseItemId: choice.baseItemId,
+                swapItemId: choice.swapItemId,
               })),
             }
           : undefined,
       },
       include: {
-        basket: { select: { name: true } },
+        basket: {
+          select: {
+            name: true,
+            items: { include: { product: true } },
+          },
+        },
         swapChoices: {
           include: {
-            swapGroup: { select: { name: true } },
-            basketItem: { include: { product: true } },
+            baseItem: { include: { product: true } },
+            swapItem: { include: { product: true } },
           },
         },
       },

@@ -52,8 +52,9 @@ export async function proxy(request: NextRequest) {
     return applyCSP(NextResponse.next({ request: { headers: requestHeaders } }))
   }
 
-  const sessionToken = request.cookies.get("authjs.session-token")?.value ||
-                       request.cookies.get("__Secure-authjs.session-token")?.value
+  const secureCookieToken = request.cookies.get("__Secure-authjs.session-token")?.value
+  const sessionToken = secureCookieToken || request.cookies.get("authjs.session-token")?.value
+  const salt = secureCookieToken ? "__Secure-authjs.session-token" : "authjs.session-token"
 
   if (!sessionToken && !isPublicOrderRoute && !isPublicOrderApi && !isResetPasswordRoute) {
     return applyCSP(NextResponse.redirect(new URL("/login", request.url)))
@@ -64,7 +65,7 @@ export async function proxy(request: NextRequest) {
       const payload = await decode({
         token: sessionToken,
         secret: process.env.NEXTAUTH_SECRET || "",
-        salt: "authjs.session-token",
+        salt,
       })
 
       if (!payload && !isPublicOrderRoute && !isPublicOrderApi && !isResetPasswordRoute) {

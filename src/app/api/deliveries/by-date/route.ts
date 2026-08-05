@@ -56,7 +56,21 @@ export async function GET(request: Request) {
       },
       status: { not: "CANCELLED" },
     },
-    include: { basket: { select: { name: true } } },
+    include: {
+      basket: {
+        select: {
+          id: true,
+          name: true,
+          items: { include: { product: true } },
+        },
+      },
+      swapChoices: {
+        include: {
+          baseItem: { include: { product: true } },
+          swapItem: { include: { product: true } },
+        },
+      },
+    },
     orderBy: [{ deliveryCity: "asc" }, { deliveryAddress: "asc" }],
   })
 

@@ -6,8 +6,10 @@ import Link from "next/link"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 export default function RegisterPage() {
+  const { t } = useTranslation()
   const router = useRouter()
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
@@ -21,10 +23,10 @@ export default function RegisterPage() {
 
   function getPasswordErrors(password: string): string[] {
     const errors: string[] = []
-    if (password.length < 8) errors.push("At least 8 characters")
-    if (!/[A-Z]/.test(password)) errors.push("At least one uppercase letter")
-    if (!/[0-9]/.test(password)) errors.push("At least one digit")
-    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push("At least one special character")
+    if (password.length < 8) errors.push(t("auth.atLeast8Chars"))
+    if (!/[A-Z]/.test(password)) errors.push(t("auth.atLeastUpper"))
+    if (!/[0-9]/.test(password)) errors.push(t("auth.atLeastDigit"))
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) errors.push(t("auth.atLeastSpecial"))
     return errors
   }
 
@@ -46,13 +48,13 @@ export default function RegisterPage() {
       const data = await res.json()
 
       if (!res.ok) {
-        setError(data.error || "Registration failed")
+        setError(data.error || t("auth.registrationFailed"))
         return
       }
 
       router.push("/login?registered=true")
     } catch {
-      setError("An error occurred. Please try again.")
+      setError(t("auth.errorOccurred"))
     } finally {
       setLoading(false)
     }
@@ -63,7 +65,7 @@ export default function RegisterPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl text-gray-900">🧺 Cabazes</CardTitle>
-          <p className="text-sm text-gray-900 mt-1">Create your account</p>
+          <p className="text-sm text-gray-900 mt-1">{t("auth.createAccount")}</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -74,7 +76,7 @@ export default function RegisterPage() {
             )}
             <div>
               <label htmlFor="name" className="block text-sm font-medium text-gray-900 mb-1">
-                Name *
+                {t("auth.name")}
               </label>
               <Input
                 id="name"
@@ -86,7 +88,7 @@ export default function RegisterPage() {
             </div>
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-1">
-                Email *
+                {t("auth.emailLabel")}
               </label>
               <Input
                 id="email"
@@ -99,7 +101,7 @@ export default function RegisterPage() {
             </div>
             <div>
               <label htmlFor="phone" className="block text-sm font-medium text-gray-900 mb-1">
-                Phone *
+                {t("auth.phone")}
               </label>
               <Input
                 id="phone"
@@ -112,7 +114,7 @@ export default function RegisterPage() {
             </div>
             <div>
               <label htmlFor="address" className="block text-sm font-medium text-gray-900 mb-1">
-                Delivery Address *
+                {t("auth.deliveryAddress")}
               </label>
               <Input
                 id="address"
@@ -125,7 +127,7 @@ export default function RegisterPage() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <label htmlFor="city" className="block text-sm font-medium text-gray-900 mb-1">
-                  City
+                  {t("auth.city")}
                 </label>
                 <Input
                   id="city"
@@ -136,7 +138,7 @@ export default function RegisterPage() {
               </div>
               <div>
                 <label htmlFor="postalCode" className="block text-sm font-medium text-gray-900 mb-1">
-                  Postal Code
+                  {t("auth.postalCode")}
                 </label>
                 <Input
                   id="postalCode"
@@ -148,7 +150,7 @@ export default function RegisterPage() {
             </div>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-900 mb-1">
-                Password *
+                {t("auth.passwordLabel")}
               </label>
               <Input
                 id="password"
@@ -170,12 +172,12 @@ export default function RegisterPage() {
               )}
             </div>
             <Button type="submit" className="w-full" disabled={loading || passwordErrors.length > 0}>
-              {loading ? "Creating account..." : "Create account"}
+              {loading ? t("auth.creatingAccount") : t("auth.createAccountBtn")}
             </Button>
             <p className="text-center text-sm text-gray-900">
-              Already have an account?{" "}
+              {t("auth.hasAccount")}{" "}
               <Link href="/login" className="text-green-700 hover:text-green-800 font-medium">
-                Sign in
+                {t("auth.signIn")}
               </Link>
             </p>
           </form>

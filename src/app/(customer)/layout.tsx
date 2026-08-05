@@ -1,21 +1,7 @@
 import Link from "next/link"
-import { auth, signOut } from "@/auth"
+import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-
-function SignOutButton() {
-  return (
-    <form
-      action={async () => {
-        "use server"
-        await signOut({ redirectTo: "/login" })
-      }}
-    >
-      <button type="submit" className="text-sm text-gray-900 hover:text-gray-700">
-        Sign out
-      </button>
-    </form>
-  )
-}
+import { CustomerNav } from "@/components/CustomerNav"
 
 export default async function CustomerLayout({
   children,
@@ -36,15 +22,7 @@ export default async function CustomerLayout({
             <Link href="/my-orders" className="text-xl font-bold text-green-700">
               🧺 Cabazes
             </Link>
-            <nav className="flex items-center gap-6">
-              <Link href="/my-orders" className="text-sm text-gray-900 hover:text-gray-700">
-                My Orders
-              </Link>
-              <Link href="/profile" className="text-sm text-gray-900 hover:text-gray-700">
-                Profile
-              </Link>
-              <SignOutButton />
-            </nav>
+            <CustomerNav />
           </div>
         </div>
       </header>

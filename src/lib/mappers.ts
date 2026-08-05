@@ -7,7 +7,6 @@ import type {
   InviteTokenDTO,
   DeliveryAddressDTO,
   BasketItemDTO,
-  SwapGroupDTO,
   OrderSwapChoiceDTO,
   FarmerHelperDTO,
 } from "@/types/api"
@@ -17,6 +16,7 @@ export function toUserDTO(user: {
   email: string
   name: string | null
   phone: string | null
+  senderEmail: string | null
   role: string
   timezone: string
   address: string | null
@@ -34,6 +34,7 @@ export function toUserDTO(user: {
     email: user.email,
     name: user.name,
     phone: user.phone,
+    senderEmail: user.senderEmail,
     role: user.role as "FARMER" | "FARMER_HELPER" | "ADMINISTRATOR" | "CUSTOMER",
     timezone: user.timezone,
     address: user.address,
@@ -71,7 +72,6 @@ export function toProductDTO(product: {
   name: string
   description: string | null
   category: string | null
-  unit: string
   active: boolean
   createdAt: Date
   updatedAt: Date
@@ -81,7 +81,6 @@ export function toProductDTO(product: {
     name: product.name,
     description: product.description,
     category: product.category,
-    unit: product.unit,
     active: product.active,
     createdAt: product.createdAt.toISOString(),
     updatedAt: product.updatedAt.toISOString(),
@@ -92,38 +91,13 @@ function toBasketItemDTO(item: {
   id: string
   productId: string
   product: { name: string }
-  quantity: number
   isBase: boolean
-  swapGroupId: string | null
 }): BasketItemDTO {
   return {
     id: item.id,
     productId: item.productId,
     productName: item.product.name,
-    quantity: item.quantity,
     isBase: item.isBase,
-    swapGroupId: item.swapGroupId,
-  }
-}
-
-function toSwapGroupDTO(group: {
-  id: string
-  name: string | null
-  maxChoices: number
-  items: {
-    id: string
-    productId: string
-    product: { name: string }
-    quantity: number
-    isBase: boolean
-    swapGroupId: string | null
-  }[]
-}): SwapGroupDTO {
-  return {
-    id: group.id,
-    name: group.name,
-    maxChoices: group.maxChoices,
-    items: group.items.map(toBasketItemDTO),
   }
 }
 
@@ -134,6 +108,7 @@ export function toBasketDTO(basket: {
   orderDeadline: Date
   price: { toString(): string }
   deliveryDay: Date
+  allowedSwaps: number
   published: boolean
   createdAt: Date
   updatedAt: Date
@@ -141,22 +116,7 @@ export function toBasketDTO(basket: {
     id: string
     productId: string
     product: { name: string }
-    quantity: number
     isBase: boolean
-    swapGroupId: string | null
-  }[]
-  swapGroups: {
-    id: string
-    name: string | null
-    maxChoices: number
-    items: {
-      id: string
-      productId: string
-      product: { name: string }
-      quantity: number
-      isBase: boolean
-      swapGroupId: string | null
-    }[]
   }[]
   _count?: { orders: number }
 }): BasketDTO {
@@ -167,9 +127,9 @@ export function toBasketDTO(basket: {
     orderDeadline: basket.orderDeadline.toISOString(),
     price: basket.price.toString(),
     deliveryDay: basket.deliveryDay.toISOString(),
+    allowedSwaps: basket.allowedSwaps,
     published: basket.published,
     items: basket.items.map(toBasketItemDTO),
-    swapGroups: basket.swapGroups.map(toSwapGroupDTO),
     orderCount: basket._count?.orders,
     createdAt: basket.createdAt.toISOString(),
     updatedAt: basket.updatedAt.toISOString(),
@@ -183,6 +143,7 @@ export function toBasketSummaryDTO(basket: {
   orderDeadline: Date
   price: { toString(): string }
   deliveryDay: Date
+  allowedSwaps: number
   published: boolean
   createdAt: Date
   _count: { orders: number }
@@ -194,6 +155,7 @@ export function toBasketSummaryDTO(basket: {
     orderDeadline: basket.orderDeadline.toISOString(),
     price: basket.price.toString(),
     deliveryDay: basket.deliveryDay.toISOString(),
+    allowedSwaps: basket.allowedSwaps,
     published: basket.published,
     orderCount: basket._count.orders,
     createdAt: basket.createdAt.toISOString(),
@@ -202,13 +164,15 @@ export function toBasketSummaryDTO(basket: {
 
 function toOrderSwapChoiceDTO(choice: {
   id: string
-  swapGroup: { name: string | null }
-  basketItem: { product: { name: string } }
+  baseItem: { id: string; product: { name: string } }
+  swapItem: { id: string; product: { name: string } }
 }): OrderSwapChoiceDTO {
   return {
     id: choice.id,
-    swapGroupName: choice.swapGroup.name,
-    chosenItemName: choice.basketItem.product.name,
+    baseItemId: choice.baseItem.id,
+    baseItemName: choice.baseItem.product.name,
+    swapItemId: choice.swapItem.id,
+    swapItemName: choice.swapItem.product.name,
   }
 }
 
@@ -218,7 +182,7 @@ export function toOrderDTO(order: {
   customerEmail: string | null
   customerPhone: string | null
   basketId: string
-  basket: { name: string }
+  basket: { name: string; items?: { id: string; productId: string; product: { name: string }; isBase: boolean }[] }
   status: string
   deliveryAddress: string
   deliveryCity: string | null
@@ -226,8 +190,8 @@ export function toOrderDTO(order: {
   deliveryNotes: string | null
   swapChoices: {
     id: string
-    swapGroup: { name: string | null }
-    basketItem: { product: { name: string } }
+    baseItem: { id: string; product: { name: string } }
+    swapItem: { id: string; product: { name: string } }
   }[]
   createdAt: Date
   updatedAt: Date
@@ -244,6 +208,14 @@ export function toOrderDTO(order: {
     deliveryCity: order.deliveryCity,
     deliveryPostalCode: order.deliveryPostalCode,
     deliveryNotes: order.deliveryNotes,
+    baseItems: (order.basket.items ?? [])
+      .filter((i) => i.isBase)
+      .map((i) => ({
+        id: i.id,
+        productId: i.productId,
+        productName: i.product.name,
+        isBase: true,
+      })),
     swapChoices: order.swapChoices.map(toOrderSwapChoiceDTO),
     createdAt: order.createdAt.toISOString(),
     updatedAt: order.updatedAt.toISOString(),
@@ -280,9 +252,18 @@ export function toDeliveryAddressDTO(order: {
   customerName: string | null
   customerPhone: string | null
   deliveryNotes: string | null
-  basket: { name: string }
+  basket: {
+    id: string
+    name: string
+    items?: { id: string; productId: string; product: { name: string }; isBase: boolean }[]
+  }
   id: string
   status: string
+  swapChoices?: {
+    id: string
+    baseItem: { id: string; product: { name: string } }
+    swapItem: { id: string; product: { name: string } }
+  }[]
 }): DeliveryAddressDTO {
   return {
     address: order.deliveryAddress,
@@ -292,7 +273,17 @@ export function toDeliveryAddressDTO(order: {
     customerPhone: order.customerPhone,
     deliveryNotes: order.deliveryNotes,
     basketName: order.basket.name,
+    basketId: order.basket.id,
     orderId: order.id,
     status: order.status,
+    baseItems: (order.basket.items ?? [])
+      .filter((i) => i.isBase)
+      .map((i) => ({
+        id: i.id,
+        productId: i.productId,
+        productName: i.product.name,
+        isBase: true,
+      })),
+    swapChoices: (order.swapChoices ?? []).map(toOrderSwapChoiceDTO),
   }
 }

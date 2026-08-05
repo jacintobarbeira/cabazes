@@ -1,10 +1,14 @@
 import { signIn } from "@/auth"
 import { NextResponse } from "next/server"
-import { checkRateLimit } from "@/lib/rate-limiter"
+import { isRateLimited, recordRateLimitAttempt } from "@/lib/rate-limiter"
 import { checkLockout, recordFailedAttempt, resetLockout } from "@/lib/lockout"
 import { auditLog } from "@/lib/audit"
+import { csrfCheck } from "@/lib/csrf"
 
 export async function POST(request: Request) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const body = await request.json()
   const { email, password } = body
 
@@ -12,7 +16,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
   }
 
-  const rateCheck = checkRateLimit(`login:${email}`)
+  const rateCheck = isRateLimited(`login:${email}`)
   if (!rateCheck.allowed) {
     auditLog({ event: "LOGIN_RATE_LIMITED", email, retryAfter: rateCheck.retryAfter || 0 })
     return NextResponse.json(
@@ -43,6 +47,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true })
   } catch {
     recordFailedAttempt(email)
+    recordRateLimitAttempt(`login:${email}`)
     auditLog({ event: "LOGIN_FAILED", email, reason: "invalid_credentials" })
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
   }

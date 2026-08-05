@@ -5,16 +5,20 @@ import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/Button"
 import { Badge } from "@/components/Badge"
+import CloneBasketDialog from "@/components/CloneBasketDialog"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatDate, formatDateOnly } from "@/lib/dates"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import type { BasketDTO } from "@/types/api"
 
 export default function BasketDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { t } = useTranslation()
   const { data: session } = useSession()
   const timezone = session?.user?.timezone || "UTC"
   const [basket, setBasket] = useState<BasketDTO | null>(null)
   const [loading, setLoading] = useState(true)
   const [publishing, setPublishing] = useState(false)
+  const [showCloneDialog, setShowCloneDialog] = useState(false)
 
   useEffect(() => {
     params.then((p) => {
@@ -49,12 +53,12 @@ export default function BasketDetailPage({ params }: { params: Promise<{ id: str
     setPublishing(false)
   }
 
-  if (loading) return <p className="text-gray-900">Loading...</p>
-  if (!basket) return <p className="text-gray-900">Basket not found</p>
+  if (loading) return <p className="text-gray-900">{t("common.loading")}</p>
+  if (!basket) return <p className="text-gray-900">{t("basketDetail.notFound")}</p>
 
-  const baseItems = basket?.items?.filter((item) => item.isBase && !item.swapGroupId) ?? []
-  const swapGroupItems = basket?.swapGroups?.flatMap((g) => g.items) ?? []
-  const hasItems = baseItems.length > 0 || swapGroupItems.length > 0
+  const baseItems = basket?.items?.filter((item) => item.isBase) ?? []
+  const swapItems = basket?.items?.filter((item) => !item.isBase) ?? []
+  const hasItems = baseItems.length > 0 || swapItems.length > 0
 
   return (
     <div className="space-y-6">
@@ -67,30 +71,39 @@ export default function BasketDetailPage({ params }: { params: Promise<{ id: str
         </div>
         <div className="flex gap-2">
           {!basket.published && (
-            <Button onClick={handlePublish} disabled={publishing || !hasItems} title={!hasItems ? "Add items before publishing" : ""}>
-              {publishing ? "Publishing..." : "Publish"}
+            <Button onClick={handlePublish} disabled={publishing || !hasItems} title={!hasItems ? t("basketDetail.addItemsFirst") : ""}>
+              {publishing ? t("basketDetail.publishing") : t("basketDetail.publish")}
             </Button>
           )}
+          {!basket.published && (
+            <Link href={`/farmer/baskets/${basket.id}/edit`}>
+              <Button variant="outline">{t("basketDetail.edit")}</Button>
+            </Link>
+          )}
+          <Button variant="outline" onClick={() => setShowCloneDialog(true)}>
+            {t("basketDetail.clone")}
+          </Button>
           <Link href={`/farmer/baskets/${basket.id}/links`}>
-            <Button variant="outline">Invite Links</Button>
+            <Button variant="outline">{t("basketDetail.inviteLinks")}</Button>
           </Link>
           <Link href={`/farmer/baskets/${basket.id}/orders`}>
-            <Button variant="outline">Orders</Button>
+            <Button variant="outline">{t("basketDetail.orders")}</Button>
           </Link>
         </div>
       </div>
 
       <div className="flex gap-4">
         <Badge variant={basket.published ? "success" : "default"}>
-          {basket.published ? "Published" : "Draft"}
+          {basket.published ? t("baskets.published") : t("baskets.draft")}
         </Badge>
         <Badge variant="info">€{basket.price}</Badge>
         <Badge variant="info">
-          Deadline: {formatDate(basket.orderDeadline, timezone)}
+          {t("basketDetail.deadline")} {formatDate(basket.orderDeadline, timezone)}
         </Badge>
         <Badge variant="info">
-          Delivery: {formatDateOnly(basket.deliveryDay, timezone)}
+          {t("basketDetail.delivery")} {formatDateOnly(basket.deliveryDay, timezone)}
         </Badge>
+        <Badge variant="info">{t("basketDetail.allowedSwaps", { count: basket.allowedSwaps })}</Badge>
       </div>
 
       {basket.description && (
@@ -103,17 +116,16 @@ export default function BasketDetailPage({ params }: { params: Promise<{ id: str
 
       <Card>
         <CardHeader>
-          <CardTitle>Base Items ({baseItems.length})</CardTitle>
+          <CardTitle>{t("basketDetail.baseItems", { count: baseItems.length })}</CardTitle>
         </CardHeader>
         <CardContent>
           {baseItems.length === 0 ? (
-            <p className="text-gray-900 text-sm">No base items.</p>
+            <p className="text-gray-900 text-sm">{t("basketDetail.noBaseItems")}</p>
           ) : (
             <ul className="space-y-2">
               {baseItems.map((item) => (
                 <li key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
                   <span className="text-gray-900">{item.productName}</span>
-                  <span className="text-sm text-gray-900">{item.quantity}x</span>
                 </li>
               ))}
             </ul>
@@ -121,27 +133,16 @@ export default function BasketDetailPage({ params }: { params: Promise<{ id: str
         </CardContent>
       </Card>
 
-      {basket.swapGroups.length > 0 && (
+      {swapItems.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle>Swap Groups ({basket.swapGroups.length})</CardTitle>
+            <CardTitle>{t("basketDetail.swapItems", { count: swapItems.length })}</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {basket.swapGroups.map((group) => (
-                <div key={group.id} className="p-3 border border-gray-200 rounded-lg">
-                  <p className="font-medium text-sm text-gray-900">{group.name || "Swap Group"}</p>
-                  <p className="text-xs text-gray-900 mb-2">Pick {group.maxChoices}</p>
-                  <div className="flex flex-wrap gap-2">
-                    {group.items.map((item) => (
-                      <span
-                        key={item.id}
-                        className="px-2 py-1 bg-green-50 text-green-700 text-sm rounded"
-                      >
-                        {item.quantity}x {item.productName}
-                      </span>
-                    ))}
-                  </div>
+            <div className="space-y-2">
+              {swapItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span className="text-gray-900">{item.productName}</span>
                 </div>
               ))}
             </div>
@@ -153,10 +154,21 @@ export default function BasketDetailPage({ params }: { params: Promise<{ id: str
         <Card>
           <CardContent className="pt-6">
             <p className="text-sm text-gray-900">
-              <strong>{basket.orderCount}</strong> order{basket.orderCount !== 1 ? "s" : ""} placed
+              <strong>{basket.orderCount}</strong> {t("basketDetail.ordersPlaced")}
             </p>
           </CardContent>
         </Card>
+      )}
+
+      {showCloneDialog && (
+        <CloneBasketDialog
+          basketId={basket.id}
+          basketName={basket.name}
+          orderDeadline={basket.orderDeadline}
+          deliveryDay={basket.deliveryDay}
+          timezone={timezone}
+          onClose={() => setShowCloneDialog(false)}
+        />
       )}
     </div>
   )

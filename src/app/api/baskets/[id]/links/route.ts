@@ -4,6 +4,7 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { randomBytes } from "crypto"
 import { getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { csrfCheck } from "@/lib/csrf"
 
 function generateToken(): string {
   return randomBytes(16).toString("hex")
@@ -50,6 +51,9 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
@@ -89,8 +93,6 @@ export async function POST(
       where: {
         basketId: id,
         customerId,
-        usedAt: null,
-        expiresAt: { gte: new Date() },
       },
     })
 

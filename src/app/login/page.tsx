@@ -2,14 +2,17 @@
 
 import { useState, useEffect, Suspense } from "react"
 import { signIn, useSession } from "next-auth/react"
-import { useSearchParams } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 function LoginForm() {
+  const { t } = useTranslation()
   const searchParams = useSearchParams()
+  const router = useRouter()
   const { status } = useSession()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -19,15 +22,15 @@ function LoginForm() {
   useEffect(() => {
     const errorParam = searchParams.get("error")
     if (errorParam === "CredentialsSignin") {
-      setError("Invalid email or password")
+      setError(t("auth.invalidCredentials"))
     }
   }, [searchParams])
 
   useEffect(() => {
     if (status === "authenticated") {
-      window.location.href = "/farmer/dashboard"
+      router.push("/farmer/dashboard")
     }
-  }, [status])
+  }, [status, router])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -48,7 +51,7 @@ function LoginForm() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">🧺 Cabazes</CardTitle>
-          <p className="text-sm text-gray-900 mt-1">Sign in to your account</p>
+          <p className="text-sm text-gray-900 mt-1">{t("auth.signInTitle")}</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -59,7 +62,7 @@ function LoginForm() {
             )}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-900 mb-1">
-                Email
+                {t("auth.email")}
               </label>
               <Input
                 id="email"
@@ -73,7 +76,7 @@ function LoginForm() {
             </div>
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-900 mb-1">
-                Password
+                {t("auth.password")}
               </label>
               <Input
                 id="password"
@@ -86,12 +89,12 @@ function LoginForm() {
               />
             </div>
             <Button type="submit" className="w-full" disabled={loading}>
-              {loading ? "Signing in..." : "Sign in"}
+              {loading ? t("auth.signingIn") : t("auth.signIn")}
             </Button>
             <p className="text-center text-sm text-gray-900">
-              Don&apos;t have an account?{" "}
+              {t("auth.noAccount")}{" "}
               <Link href="/register" className="text-green-700 hover:text-green-800 font-medium">
-                Register
+                {t("auth.register")}
               </Link>
             </p>
           </form>

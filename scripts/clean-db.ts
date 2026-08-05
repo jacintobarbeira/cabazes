@@ -20,7 +20,7 @@ async function main() {
   await prisma.user.deleteMany({
     where: {
       email: {
-        notIn: ["farmer@cabazes.com", "alice@example.com", "bob@example.com"],
+        notIn: ["farmer@cabazes.com", "alice@example.com", "bob@example.com", "admin@cabazes.com"],
       },
     },
   })

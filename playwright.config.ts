@@ -10,6 +10,15 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
+    storageState: {
+      cookies: [],
+      origins: [
+        {
+          origin: "http://localhost:3000",
+          localStorage: [{ name: "locale", value: "en" }],
+        },
+      ],
+    },
   },
   projects: [
     {

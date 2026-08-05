@@ -4,8 +4,12 @@ import bcrypt from "bcryptjs"
 import { auth } from "@/auth"
 import { validatePassword } from "@/lib/password-policy"
 import { auditLog } from "@/lib/audit"
+import { csrfCheck } from "@/lib/csrf"
 
 export async function POST(request: Request) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id) {

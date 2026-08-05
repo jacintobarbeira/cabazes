@@ -6,9 +6,11 @@ import { useSession } from "next-auth/react"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 export default function ResetPasswordPage() {
-  const { data: session, update } = useSession()
+  const { t } = useTranslation()
+  const { update } = useSession()
   const router = useRouter()
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -20,12 +22,12 @@ export default function ResetPasswordPage() {
     setError("")
 
     if (newPassword.length < 6) {
-      setError("Password must be at least 6 characters")
+      setError(t("resetPassword.tooShort"))
       return
     }
 
     if (newPassword !== confirmPassword) {
-      setError("Passwords do not match")
+      setError(t("resetPassword.noMatch"))
       return
     }
 
@@ -40,20 +42,18 @@ export default function ResetPasswordPage() {
 
       if (!res.ok) {
         const data = await res.json()
-        setError(data.error || "Failed to reset password")
+        setError(data.error || t("resetPassword.failed"))
         return
       }
 
-      await update()
-      if (session?.user?.role === "FARMER_HELPER") {
-        router.push("/farmer/dashboard")
-      } else if (session?.user?.role === "FARMER") {
+      const updatedSession = await update()
+      if (updatedSession?.user?.role === "FARMER_HELPER" || updatedSession?.user?.role === "FARMER") {
         router.push("/farmer/dashboard")
       } else {
         router.push("/my-orders")
       }
     } catch {
-      setError("Failed to reset password")
+      setError(t("resetPassword.failed"))
     } finally {
       setSaving(false)
     }
@@ -63,8 +63,8 @@ export default function ResetPasswordPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
       <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Reset Your Password</CardTitle>
-          <p className="text-sm text-gray-900 mt-1">Please set a new password to continue</p>
+          <CardTitle>{t("resetPassword.title")}</CardTitle>
+          <p className="text-sm text-gray-900 mt-1">{t("resetPassword.subtitle")}</p>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -75,7 +75,7 @@ export default function ResetPasswordPage() {
             )}
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
-                New Password
+                {t("resetPassword.newPassword")}
               </label>
               <Input
                 type="password"
@@ -87,7 +87,7 @@ export default function ResetPasswordPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
-                Confirm Password
+                {t("resetPassword.confirmPassword")}
               </label>
               <Input
                 type="password"
@@ -98,7 +98,7 @@ export default function ResetPasswordPage() {
               />
             </div>
             <Button type="submit" disabled={saving} className="w-full">
-              {saving ? "Saving..." : "Reset Password"}
+              {saving ? t("resetPassword.saving") : t("resetPassword.resetPassword")}
             </Button>
           </form>
         </CardContent>

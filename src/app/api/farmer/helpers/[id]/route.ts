@@ -2,11 +2,15 @@ import { prisma } from "@/lib/db"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { auditLog } from "@/lib/audit"
+import { csrfCheck } from "@/lib/csrf"
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id || session.user?.role !== "FARMER") {

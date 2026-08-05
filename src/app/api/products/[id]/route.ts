@@ -3,11 +3,15 @@ import { toProductDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { csrfCheck } from "@/lib/csrf"
 
 export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
@@ -36,7 +40,6 @@ export async function PATCH(
       name: body.name ?? product.name,
       description: body.description,
       category: body.category,
-      unit: body.unit,
       active: body.active ?? product.active,
     },
   }).catch(() => null)
@@ -52,6 +55,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {

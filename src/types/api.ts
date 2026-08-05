@@ -3,6 +3,7 @@ export interface UserDTO {
   email: string
   name: string | null
   phone: string | null
+  senderEmail: string | null
   role: "FARMER" | "FARMER_HELPER" | "ADMINISTRATOR" | "CUSTOMER"
   timezone: string
   address: string | null
@@ -30,7 +31,6 @@ export interface ProductDTO {
   name: string
   description: string | null
   category: string | null
-  unit: string
   active: boolean
   createdAt: string
   updatedAt: string
@@ -40,16 +40,7 @@ export interface BasketItemDTO {
   id: string
   productId: string
   productName: string
-  quantity: number
   isBase: boolean
-  swapGroupId: string | null
-}
-
-export interface SwapGroupDTO {
-  id: string
-  name: string | null
-  maxChoices: number
-  items: BasketItemDTO[]
 }
 
 export interface BasketDTO {
@@ -59,9 +50,9 @@ export interface BasketDTO {
   orderDeadline: string
   price: string
   deliveryDay: string
+  allowedSwaps: number
   published: boolean
   items: BasketItemDTO[]
-  swapGroups: SwapGroupDTO[]
   orderCount?: number
   createdAt: string
   updatedAt: string
@@ -74,6 +65,7 @@ export interface BasketSummaryDTO {
   orderDeadline: string
   price: string
   deliveryDay: string
+  allowedSwaps: number
   published: boolean
   orderCount: number
   createdAt: string
@@ -81,8 +73,10 @@ export interface BasketSummaryDTO {
 
 export interface OrderSwapChoiceDTO {
   id: string
-  swapGroupName: string | null
-  chosenItemName: string
+  baseItemId: string
+  baseItemName: string
+  swapItemId: string
+  swapItemName: string
 }
 
 export interface OrderDTO {
@@ -97,6 +91,7 @@ export interface OrderDTO {
   deliveryCity: string | null
   deliveryPostalCode: string | null
   deliveryNotes: string | null
+  baseItems: BasketItemDTO[]
   swapChoices: OrderSwapChoiceDTO[]
   createdAt: string
   updatedAt: string
@@ -122,8 +117,11 @@ export interface DeliveryAddressDTO {
   customerPhone: string | null
   deliveryNotes: string | null
   basketName: string
+  basketId: string
   orderId: string
   status: string
+  baseItems: BasketItemDTO[]
+  swapChoices: OrderSwapChoiceDTO[]
 }
 
 export interface OrderSubmissionDTO {
@@ -137,7 +135,7 @@ export interface OrderSubmissionDTO {
   deliveryPostalCode?: string
   deliveryNotes?: string
   swapChoices: {
-    swapGroupId: string
-    basketItemId: string
+    baseItemId: string
+    swapItemId: string
   }[]
 }

@@ -7,12 +7,11 @@ const rateLimitMap = new Map<string, RateLimitEntry>()
 const WINDOW_MS = 15 * 60 * 1000
 const MAX_ATTEMPTS = 10
 
-export function checkRateLimit(key: string): { allowed: boolean; retryAfter?: number } {
+export function isRateLimited(key: string): { allowed: boolean; retryAfter?: number } {
   const now = Date.now()
   const entry = rateLimitMap.get(key)
 
   if (!entry) {
-    rateLimitMap.set(key, { attempts: [now] })
     return { allowed: true }
   }
 
@@ -24,8 +23,20 @@ export function checkRateLimit(key: string): { allowed: boolean; retryAfter?: nu
     return { allowed: false, retryAfter }
   }
 
-  entry.attempts.push(now)
   return { allowed: true }
+}
+
+export function recordRateLimitAttempt(key: string) {
+  const now = Date.now()
+  const entry = rateLimitMap.get(key)
+
+  if (!entry) {
+    rateLimitMap.set(key, { attempts: [now] })
+    return
+  }
+
+  entry.attempts = entry.attempts.filter(t => now - t < WINDOW_MS)
+  entry.attempts.push(now)
 }
 
 setInterval(() => {

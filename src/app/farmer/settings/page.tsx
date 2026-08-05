@@ -4,13 +4,16 @@ import { useEffect, useState } from "react"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 import { COMMON_TIMEZONES } from "@/lib/dates"
 import type { UserDTO } from "@/types/api"
 
 export default function SettingsPage() {
+  const { t } = useTranslation()
   const [user, setUser] = useState<UserDTO | null>(null)
   const [name, setName] = useState("")
   const [phone, setPhone] = useState("")
+  const [senderEmail, setSenderEmail] = useState("")
   const [timezone, setTimezone] = useState("UTC")
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -23,6 +26,7 @@ export default function SettingsPage() {
         setUser(data)
         setName(data.name || "")
         setPhone(data.phone || "")
+        setSenderEmail(data.senderEmail || "")
         setTimezone(data.timezone || "UTC")
         setLoading(false)
       })
@@ -38,7 +42,7 @@ export default function SettingsPage() {
       const res = await fetch("/api/farmer/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, phone, timezone }),
+        body: JSON.stringify({ name, phone, timezone, senderEmail: senderEmail || null }),
       })
 
       if (res.ok) {
@@ -52,39 +56,39 @@ export default function SettingsPage() {
   }
 
   if (loading) {
-    return <p className="text-gray-900">Loading settings...</p>
+    return <p className="text-gray-900">{t("settings.loading")}</p>
   }
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+      <h1 className="text-2xl font-bold text-gray-900">{t("settings.title")}</h1>
 
       <Card>
         <CardHeader>
-          <CardTitle>Profile Settings</CardTitle>
+          <CardTitle>{t("settings.profileSettings")}</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
             {saved && (
               <div className="bg-green-50 text-green-700 text-sm p-3 rounded-md">
-                Settings updated successfully!
+                {t("settings.updated")}
               </div>
             )}
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
-                Name
+                {t("settings.name")}
               </label>
               <Input value={name} onChange={(e) => setName(e.target.value)} />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
-                Email
+                {t("settings.email")}
               </label>
               <Input value={user?.email || ""} disabled className="bg-gray-50" />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
-                Timezone
+                {t("settings.timezone")}
               </label>
               <select
                 value={timezone}
@@ -100,12 +104,23 @@ export default function SettingsPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-900 mb-1">
-                Phone
+                {t("settings.phone")}
               </label>
               <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
             </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-1">
+                {t("settings.senderEmail")}
+              </label>
+              <Input
+                value={senderEmail}
+                onChange={(e) => setSenderEmail(e.target.value)}
+                placeholder={t("settings.senderEmailPlaceholder")}
+                type="email"
+              />
+            </div>
             <Button type="submit" disabled={saving}>
-              {saving ? "Saving..." : "Save Changes"}
+              {saving ? t("settings.saving") : t("settings.saveChanges")}
             </Button>
           </form>
         </CardContent>

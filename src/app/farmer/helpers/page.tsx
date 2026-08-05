@@ -5,6 +5,7 @@ import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
+import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface Helper {
   id: string
@@ -16,6 +17,7 @@ interface Helper {
 }
 
 export default function HelpersPage() {
+  const { t } = useTranslation()
   const [helpers, setHelpers] = useState<Helper[]>([])
   const [loading, setLoading] = useState(true)
   const [showForm, setShowForm] = useState(false)
@@ -27,11 +29,15 @@ export default function HelpersPage() {
 
   const fetchHelpers = () => {
     fetch("/api/farmer/helpers")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load")
+        return res.json()
+      })
       .then((data) => {
         setHelpers(data)
         setLoading(false)
       })
+      .catch(() => setLoading(false))
   }
 
   useEffect(() => {
@@ -58,7 +64,7 @@ export default function HelpersPage() {
       fetchHelpers()
     } else {
       const data = await res.json()
-      setFormError(data.error || "Failed to create helper")
+      setFormError(data.error || t("helpers.failedToCreate"))
     }
   }
 
@@ -72,21 +78,21 @@ export default function HelpersPage() {
     }
   }
 
-  if (loading) return <p className="text-gray-900">Loading...</p>
+  if (loading) return <p className="text-gray-900">{t("common.loading")}</p>
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold text-gray-900">Helpers</h1>
+        <h1 className="text-2xl font-bold text-gray-900">{t("helpers.title")}</h1>
         <Button onClick={() => setShowForm(!showForm)}>
-          {showForm ? "Cancel" : "+ Add Helper"}
+          {showForm ? t("helpers.cancel") : t("helpers.addHelper")}
         </Button>
       </div>
 
       {showForm && (
         <Card>
           <CardHeader>
-            <CardTitle>New Helper</CardTitle>
+            <CardTitle>{t("helpers.newHelper")}</CardTitle>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -97,24 +103,24 @@ export default function HelpersPage() {
               )}
               {tempPassword && (
                 <div className="bg-green-50 text-green-700 text-sm p-3 rounded-md">
-                  Helper created! Temp password: <strong>{tempPassword}</strong>
+                  {t("helpers.created")} <strong>{tempPassword}</strong>
                 </div>
               )}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">Name</label>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">{t("helpers.name")}</label>
                   <Input value={name} onChange={(e) => setName(e.target.value)} />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">Email *</label>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">{t("helpers.email")}</label>
                   <Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">Phone</label>
+                <label className="block text-sm font-medium text-gray-900 mb-1">{t("helpers.phone")}</label>
                 <Input value={phone} onChange={(e) => setPhone(e.target.value)} />
               </div>
-              <Button type="submit">Create Helper</Button>
+              <Button type="submit">{t("helpers.createHelper")}</Button>
             </form>
           </CardContent>
         </Card>
@@ -123,16 +129,16 @@ export default function HelpersPage() {
       <Card>
         <CardContent className="pt-6">
           {helpers.length === 0 ? (
-            <p className="text-gray-900 text-sm">No helpers yet.</p>
+            <p className="text-gray-900 text-sm">{t("helpers.noHelpers")}</p>
           ) : (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-200">
-                  <th className="text-left py-2 font-medium text-gray-900">Name</th>
-                  <th className="text-left py-2 font-medium text-gray-900">Email</th>
-                  <th className="text-left py-2 font-medium text-gray-900">Phone</th>
-                  <th className="text-left py-2 font-medium text-gray-900">Status</th>
-                  <th className="text-right py-2 font-medium text-gray-900">Actions</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("helpers.colName")}</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("helpers.colEmail")}</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("helpers.colPhone")}</th>
+                  <th className="text-left py-2 font-medium text-gray-900">{t("helpers.colStatus")}</th>
+                  <th className="text-right py-2 font-medium text-gray-900">{t("helpers.colActions")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -143,7 +149,7 @@ export default function HelpersPage() {
                     <td className="py-2 text-gray-900">{helper.phone || "-"}</td>
                     <td className="py-2 text-gray-900">
                       <Badge variant={helper.disabled ? "danger" : "success"}>
-                        {helper.disabled ? "Disabled" : "Active"}
+                        {helper.disabled ? t("common.disabled") : t("common.active")}
                       </Badge>
                     </td>
                     <td className="py-2 text-right">
@@ -151,7 +157,7 @@ export default function HelpersPage() {
                         onClick={() => handleToggleDisabled(helper.id)}
                         className="text-green-600 hover:text-green-700"
                       >
-                        {helper.disabled ? "Enable" : "Disable"}
+                        {helper.disabled ? t("helpers.enable") : t("helpers.disable")}
                       </button>
                     </td>
                   </tr>

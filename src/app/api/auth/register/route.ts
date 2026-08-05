@@ -2,9 +2,16 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { validatePassword } from "@/lib/password-policy"
+import { isRateLimited, recordRateLimitAttempt } from "@/lib/rate-limiter"
 import { auditLog } from "@/lib/audit"
+import { csrfCheck } from "@/lib/csrf"
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
 export async function POST(request: Request) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   try {
     const body = await request.json()
     const { name, email, phone, address, city, postalCode, password } = body
@@ -16,13 +23,28 @@ export async function POST(request: Request) {
       )
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase()
+    if (!EMAIL_REGEX.test(normalizedEmail)) {
+      return NextResponse.json({ error: "Invalid email format" }, { status: 400 })
+    }
+
+    const rateCheck = isRateLimited(`register:${normalizedEmail}`)
+    if (!rateCheck.allowed) {
+      return NextResponse.json(
+        { error: `Too many attempts. Try again in ${rateCheck.retryAfter} seconds.` },
+        { status: 429 }
+      )
+    }
+
+    recordRateLimitAttempt(`register:${normalizedEmail}`)
+
     const passwordError = validatePassword(password)
     if (passwordError) {
       return NextResponse.json({ error: passwordError }, { status: 400 })
     }
 
     const existingUser = await prisma.user.findUnique({
-      where: { email },
+      where: { email: normalizedEmail },
     })
 
     if (existingUser) {
@@ -37,7 +59,7 @@ export async function POST(request: Request) {
     const user = await prisma.user.create({
       data: {
         name,
-        email,
+        email: normalizedEmail,
         passwordHash,
         phone: phone || null,
         timezone: "UTC",

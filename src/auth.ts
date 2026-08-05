@@ -73,8 +73,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.timezone = user.timezone
         token.mustResetPassword = user.mustResetPassword
       }
-      if (trigger === "update" && session?.name) {
-        token.name = session.name
+      if (trigger === "update") {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { name: true, mustResetPassword: true },
+        })
+        if (dbUser) {
+          token.name = dbUser.name
+          token.mustResetPassword = dbUser.mustResetPassword
+        }
       }
       return token
     },

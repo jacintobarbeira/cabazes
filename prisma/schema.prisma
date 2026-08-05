@@ -20,6 +20,7 @@ model User {
   notes             String?
   disabled          Boolean   @default(false)
   mustResetPassword Boolean   @default(false)
+  senderEmail       String?
   managedById       String?
   managedBy         User?     @relation("FarmerHelpers", fields: [managedById], references: [id])
   helpers           User[]    @relation("FarmerHelpers")
@@ -40,13 +41,13 @@ model Product {
   name        String
   description String?
   category    String?
-  unit        String    @default("unit")
   active      Boolean   @default(true)
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   basketItems BasketItem[]
 
   @@unique([name, farmerId])
+  @@index([farmerId])
 }
 
 model Basket {
@@ -58,38 +59,30 @@ model Basket {
   orderDeadline DateTime
   price         Decimal
   deliveryDay   DateTime
+  allowedSwaps  Int       @default(3)
   published     Boolean   @default(false)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   items         BasketItem[]
   orders        Order[]
   inviteTokens  InviteToken[]
-  swapGroups    SwapGroup[]
 
   @@unique([name, deliveryDay, farmerId])
+  @@index([farmerId])
 }
 
 model BasketItem {
-  id            String    @id @default(cuid())
-  basketId      String
-  basket        Basket    @relation(fields: [basketId], references: [id], onDelete: Cascade)
-  productId     String
-  product       Product   @relation(fields: [productId], references: [id])
-  quantity      Int       @default(1)
-  isBase        Boolean   @default(true)
-  swapGroupId   String?
-  swapGroup     SwapGroup? @relation(fields: [swapGroupId], references: [id], onDelete: SetNull)
-  orderChoices  OrderSwapChoice[]
-}
+  id           String            @id @default(cuid())
+  basketId     String
+  basket       Basket            @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  productId    String
+  product      Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  isBase       Boolean           @default(true)
+  baseChoices  OrderSwapChoice[] @relation("SwapChoicesBase")
+  swapChoices  OrderSwapChoice[] @relation("SwapChoicesSwap")
 
-model SwapGroup {
-  id            String    @id @default(cuid())
-  basketId      String
-  basket        Basket    @relation(fields: [basketId], references: [id], onDelete: Cascade)
-  name          String?
-  maxChoices    Int       @default(1)
-  items         BasketItem[]
-  orderChoices  OrderSwapChoice[]
+  @@index([basketId])
+  @@index([productId])
 }
 
 model Order {
@@ -113,16 +106,20 @@ model Order {
   updatedAt          DateTime  @updatedAt
 
   @@unique([customerId, basketId])
+  @@index([basketId])
+  @@index([status])
 }
 
 model OrderSwapChoice {
-  id            String    @id @default(cuid())
-  orderId       String
-  order         Order     @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  swapGroupId   String
-  swapGroup     SwapGroup @relation(fields: [swapGroupId], references: [id])
-  basketItemId  String
-  basketItem    BasketItem @relation(fields: [basketItemId], references: [id])
+  id          String     @id @default(cuid())
+  orderId     String
+  order       Order      @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  baseItemId  String
+  baseItem    BasketItem @relation("SwapChoicesBase", fields: [baseItemId], references: [id])
+  swapItemId  String
+  swapItem    BasketItem @relation("SwapChoicesSwap", fields: [swapItemId], references: [id])
+
+  @@index([orderId])
 }
 
 model InviteToken {
@@ -136,6 +133,8 @@ model InviteToken {
   usedAt        DateTime?
   createdAt     DateTime  @default(now())
   orders        Order[]
+
+  @@unique([basketId, customerId])
 }
 
 model Account {

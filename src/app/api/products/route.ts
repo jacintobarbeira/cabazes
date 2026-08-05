@@ -3,6 +3,7 @@ import { toProductDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { csrfCheck } from "@/lib/csrf"
 
 export async function GET() {
   const session = await auth()
@@ -25,6 +26,9 @@ export async function GET() {
 }
 
 export async function POST(request: Request) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
@@ -37,7 +41,7 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
-  const { name, description, category, unit, active } = body
+  const { name, description, category, active } = body
 
   if (!name) {
     return NextResponse.json({ error: "Name is required" }, { status: 400 })
@@ -48,7 +52,6 @@ export async function POST(request: Request) {
       name,
       description: description || null,
       category: category || null,
-      unit: unit || "unit",
       active: active !== false,
       farmerId,
     },

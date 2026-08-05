@@ -3,6 +3,7 @@ import { toBasketDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { csrfCheck } from "@/lib/csrf"
 
 export async function GET(
   request: Request,
@@ -25,7 +26,6 @@ export async function GET(
     where: { id, farmerId },
     include: {
       items: { include: { product: true } },
-      swapGroups: { include: { items: { include: { product: true } } } },
       _count: { select: { orders: true } },
     },
   })
@@ -41,6 +41,9 @@ export async function PATCH(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
@@ -63,8 +66,19 @@ export async function PATCH(
     return NextResponse.json({ error: "Not found" }, { status: 404 })
   }
 
+  if (basket.published) {
+    return NextResponse.json(
+      { error: "Published baskets cannot be edited" },
+      { status: 400 }
+    )
+  }
+
   const orderDeadlineDate = body.orderDeadline ? new Date(body.orderDeadline) : basket.orderDeadline
   const deliveryDayDate = body.deliveryDay ? new Date(body.deliveryDay) : basket.deliveryDay
+
+  if (isNaN(orderDeadlineDate.getTime()) || isNaN(deliveryDayDate.getTime())) {
+    return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
+  }
 
   if (orderDeadlineDate >= deliveryDayDate) {
     return NextResponse.json(
@@ -73,18 +87,37 @@ export async function PATCH(
     )
   }
 
+  let parsedPrice = Number(basket.price)
+  if (body.price !== undefined) {
+    parsedPrice = parseFloat(body.price)
+    if (isNaN(parsedPrice) || parsedPrice <= 0) {
+      return NextResponse.json({ error: "Price must be a positive number" }, { status: 400 })
+    }
+  }
+
+  let parsedSwaps = basket.allowedSwaps
+  if (body.allowedSwaps !== undefined) {
+    parsedSwaps = parseInt(body.allowedSwaps, 10)
+    if (isNaN(parsedSwaps) || parsedSwaps < 0) {
+      return NextResponse.json(
+        { error: "allowedSwaps must be a non-negative integer" },
+        { status: 400 }
+      )
+    }
+  }
+
   const updated = await prisma.basket.update({
     where: { id },
     data: {
       name: body.name ?? basket.name,
       description: body.description,
       orderDeadline: orderDeadlineDate,
-      price: body.price ? parseFloat(body.price) : basket.price,
+      price: parsedPrice,
       deliveryDay: deliveryDayDate,
+      allowedSwaps: parsedSwaps,
     },
     include: {
       items: { include: { product: true } },
-      swapGroups: { include: { items: { include: { product: true } } } },
     },
   }).catch(() => null)
 
@@ -102,6 +135,9 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  const csrfError = csrfCheck(request)
+  if (csrfError) return csrfError
+
   const session = await auth()
 
   if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
