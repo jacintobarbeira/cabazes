@@ -63,6 +63,27 @@ export async function POST(request: Request) {
 
     const passwordHash = await bcrypt.hash(password, 10)
 
+    const farmerIds: string[] = Array.isArray(body.farmerIds) ? body.farmerIds : []
+
+    if (farmerIds.length === 0) {
+      return NextResponse.json(
+        { error: "At least one farmer must be selected" },
+        { status: 400 }
+      )
+    }
+
+    const farmers = await prisma.user.findMany({
+      where: { id: { in: farmerIds }, role: "FARMER" },
+      select: { id: true },
+    })
+
+    if (farmers.length !== farmerIds.length) {
+      return NextResponse.json(
+        { error: "One or more selected farmers are invalid" },
+        { status: 400 }
+      )
+    }
+
     const user = await prisma.user.create({
       data: {
         name,
@@ -74,6 +95,9 @@ export async function POST(request: Request) {
         city: city || null,
         postalCode: postalCode || null,
         role: "CUSTOMER",
+        customerFarmers: {
+          create: farmers.map((f) => ({ farmerId: f.id })),
+        },
       },
     })
 

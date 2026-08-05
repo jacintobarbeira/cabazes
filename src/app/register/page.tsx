@@ -1,12 +1,18 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { useTranslation } from "@/lib/i18n/useTranslation"
+
+interface Farmer {
+  id: string
+  name: string | null
+  email: string
+}
 
 export default function RegisterPage() {
   const { t } = useTranslation()
@@ -20,6 +26,19 @@ export default function RegisterPage() {
   const [password, setPassword] = useState("")
   const [error, setError] = useState("")
   const [loading, setLoading] = useState(false)
+  const [farmers, setFarmers] = useState<Farmer[]>([])
+  const [selectedFarmers, setSelectedFarmers] = useState<Set<string>>(new Set())
+  const [loadingFarmers, setLoadingFarmers] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/farmers")
+      .then((res) => res.json())
+      .then((data) => {
+        setFarmers(data)
+        setLoadingFarmers(false)
+      })
+      .catch(() => setLoadingFarmers(false))
+  }, [])
 
   function getPasswordErrors(password: string): string[] {
     const errors: string[] = []
@@ -32,17 +51,42 @@ export default function RegisterPage() {
 
   const passwordErrors = password ? getPasswordErrors(password) : []
 
+  const toggleFarmer = (id: string) => {
+    setSelectedFarmers((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
     if (passwordErrors.length > 0) return
+    if (selectedFarmers.size === 0) {
+      setError(t("auth.selectAtLeastOne"))
+      return
+    }
     setLoading(true)
 
     try {
       const res = await fetch("/api/auth/register", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, email, phone, address, city, postalCode, password }),
+        body: JSON.stringify({
+          name,
+          email,
+          phone,
+          address,
+          city,
+          postalCode,
+          password,
+          farmerIds: [...selectedFarmers],
+        }),
       })
 
       const data = await res.json()
@@ -169,6 +213,35 @@ export default function RegisterPage() {
                     </li>
                   ))}
                 </ul>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-2">
+                {t("auth.selectFarmers")}
+              </label>
+              {loadingFarmers ? (
+                <p className="text-sm text-gray-500">{t("common.loading")}</p>
+              ) : farmers.length === 0 ? (
+                <p className="text-sm text-gray-500">{t("auth.noFarmersAvailable")}</p>
+              ) : (
+                <div className="space-y-2 max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3">
+                  {farmers.map((farmer) => (
+                    <label
+                      key={farmer.id}
+                      className="flex items-center gap-2 cursor-pointer"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedFarmers.has(farmer.id)}
+                        onChange={() => toggleFarmer(farmer.id)}
+                        className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+                      />
+                      <span className="text-sm text-gray-900">
+                        {farmer.name || farmer.email}
+                      </span>
+                    </label>
+                  ))}
+                </div>
               )}
             </div>
             <Button type="submit" className="w-full" disabled={loading || passwordErrors.length > 0}>

@@ -22,6 +22,7 @@ export async function GET() {
       OR: [
         { orders: { some: { basket: { farmerId } } } },
         { inviteTokens: { some: { basket: { farmerId } } } },
+        { customerFarmers: { some: { farmerId } } },
       ],
     },
     orderBy: { name: "asc" },

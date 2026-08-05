@@ -5,6 +5,7 @@ import { AdminSidebar } from "@/components/AdminSidebar"
 const navItems = [
   { href: "/admin", icon: "📊", labelKey: "nav.dashboard" },
   { href: "/admin/farmers", icon: "👨‍🌾", labelKey: "nav.farmers" },
+  { href: "/admin/settings", icon: "⚙️", labelKey: "nav.settings" },
 ]
 
 export default async function AdminLayout({

@@ -30,8 +30,10 @@ model User {
   inviteTokens      InviteToken[]
   accounts          Account[]
   sessions          Session[]
-  baskets           Basket[]  @relation("FarmerBaskets")
-  products          Product[] @relation("FarmerProducts")
+  baskets           Basket[]         @relation("FarmerBaskets")
+  products          Product[]        @relation("FarmerProducts")
+  customerFarmers   CustomerFarmer[] @relation("CustomerFarmers")
+  farmerCustomers   CustomerFarmer[] @relation("FarmerCustomers")
 }
 
 model Product {
@@ -135,6 +137,19 @@ model InviteToken {
   orders        Order[]
 
   @@unique([basketId, customerId])
+}
+
+model CustomerFarmer {
+  id         String   @id @default(cuid())
+  customerId String
+  customer   User     @relation("CustomerFarmers", fields: [customerId], references: [id], onDelete: Cascade)
+  farmerId   String
+  farmer     User     @relation("FarmerCustomers", fields: [farmerId], references: [id], onDelete: Cascade)
+  createdAt  DateTime @default(now())
+
+  @@unique([customerId, farmerId])
+  @@index([customerId])
+  @@index([farmerId])
 }
 
 model AuthThrottle {

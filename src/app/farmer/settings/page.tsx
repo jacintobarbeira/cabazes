@@ -8,6 +8,23 @@ import { useTranslation } from "@/lib/i18n/useTranslation"
 import { COMMON_TIMEZONES } from "@/lib/dates"
 import type { UserDTO } from "@/types/api"
 
+function hasSpecialChar(pw: string): boolean {
+  const chars = "!@#$%^&*()_+-=[]{};:'\"\\|,./?"
+  for (const c of chars) {
+    if (pw.includes(c)) return true
+  }
+  return pw.includes("<") || pw.includes(">")
+}
+
+function getPasswordErrors(pw: string, t: (key: string) => string): string[] {
+  const errors: string[] = []
+  if (pw.length < 8) errors.push(t("auth.atLeast8Chars"))
+  if (!/[A-Z]/.test(pw)) errors.push(t("auth.atLeastUpper"))
+  if (!/[0-9]/.test(pw)) errors.push(t("auth.atLeastDigit"))
+  if (!hasSpecialChar(pw)) errors.push(t("auth.atLeastSpecial"))
+  return errors
+}
+
 export default function SettingsPage() {
   const { t } = useTranslation()
   const [user, setUser] = useState<UserDTO | null>(null)
@@ -18,6 +35,14 @@ export default function SettingsPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [saved, setSaved] = useState(false)
+
+  const [currentPassword, setCurrentPassword] = useState("")
+  const [newPassword, setNewPassword] = useState("")
+  const [confirmNewPassword, setConfirmNewPassword] = useState("")
+  const [pwSaving, setPwSaving] = useState(false)
+  const [pwSaved, setPwSaved] = useState(false)
+  const [pwError, setPwError] = useState("")
+  const [pwErrors, setPwErrors] = useState<string[]>([])
 
   useEffect(() => {
     fetch("/api/farmer/me")
@@ -52,6 +77,47 @@ export default function SettingsPage() {
     } catch {
     } finally {
       setSaving(false)
+    }
+  }
+
+  const handlePasswordChange = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setPwError("")
+    setPwSaved(false)
+    setPwErrors([])
+
+    if (newPassword !== confirmNewPassword) {
+      setPwError(t("resetPassword.noMatch"))
+      return
+    }
+
+    const errs = getPasswordErrors(newPassword, t)
+    if (errs.length > 0) {
+      setPwErrors(errs)
+      return
+    }
+
+    setPwSaving(true)
+    try {
+      const res = await fetch("/api/auth/change-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword, newPassword }),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setPwSaved(true)
+        setCurrentPassword("")
+        setNewPassword("")
+        setConfirmNewPassword("")
+        setTimeout(() => setPwSaved(false), 3000)
+      } else {
+        setPwError(data.error)
+      }
+    } catch {
+      setPwError(t("auth.errorOccurred"))
+    } finally {
+      setPwSaving(false)
     }
   }
 
@@ -121,6 +187,74 @@ export default function SettingsPage() {
             </div>
             <Button type="submit" disabled={saving}>
               {saving ? t("settings.saving") : t("settings.saveChanges")}
+            </Button>
+          </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.changePassword")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={handlePasswordChange} className="space-y-4">
+            {pwSaved && (
+              <div className="bg-green-50 text-green-700 text-sm p-3 rounded-md">
+                {t("settings.passwordUpdated")}
+              </div>
+            )}
+            {pwError && (
+              <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{pwError}</div>
+            )}
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-1">
+                {t("settings.currentPassword")}
+              </label>
+              <Input
+                type="password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+                required
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-1">
+                {t("settings.newPassword")}
+              </label>
+              <Input
+                type="password"
+                value={newPassword}
+                onChange={(e) => {
+                  setNewPassword(e.target.value)
+                  setPwErrors([])
+                }}
+                required
+                minLength={8}
+              />
+              {pwErrors.length > 0 && (
+                <ul className="text-sm text-red-600 mt-1 space-y-0.5">
+                  {pwErrors.map((err) => (
+                    <li key={err} className="flex items-center gap-1">
+                      <span>•</span> {err}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-900 mb-1">
+                {t("settings.confirmNewPassword")}
+              </label>
+              <Input
+                type="password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                required
+                minLength={8}
+              />
+            </div>
+            <Button type="submit" disabled={pwSaving}>
+              {pwSaving ? t("settings.saving") : t("settings.changePassword")}
             </Button>
           </form>
         </CardContent>
