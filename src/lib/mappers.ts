@@ -49,6 +49,48 @@ export function toUserDTO(user: {
   }
 }
 
+export function toCustomerDTO(
+  customer: {
+    id: string
+    email: string
+    name: string | null
+    phone: string | null
+    senderEmail: string | null
+    role: string
+    timezone: string
+    address: string | null
+    city: string | null
+    postalCode: string | null
+    notes: string | null
+    disabled: boolean
+    mustResetPassword: boolean
+    managedById: string | null
+    createdAt: Date
+    updatedAt: Date
+  },
+  options: { includePII?: boolean } = {}
+): UserDTO {
+  const includePII = options.includePII !== false
+  return {
+    id: customer.id,
+    email: customer.email,
+    name: customer.name,
+    phone: customer.phone,
+    senderEmail: customer.senderEmail,
+    role: customer.role as "FARMER" | "FARMER_HELPER" | "ADMINISTRATOR" | "CUSTOMER",
+    timezone: customer.timezone,
+    address: includePII ? customer.address : null,
+    city: includePII ? customer.city : null,
+    postalCode: includePII ? customer.postalCode : null,
+    notes: includePII ? customer.notes : null,
+    disabled: customer.disabled,
+    mustResetPassword: customer.mustResetPassword,
+    managedById: customer.managedById,
+    createdAt: customer.createdAt.toISOString(),
+    updatedAt: customer.updatedAt.toISOString(),
+  }
+}
+
 export function toFarmerHelperDTO(helper: {
   id: string
   email: string

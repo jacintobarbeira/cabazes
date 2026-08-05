@@ -39,6 +39,8 @@ const TEST_BASKET_PREFIXES = [
   "Test Orders SwapView ",
   "Test Orders Collapse ",
   "Test Dedup ",
+  "Scope Basket",
+  "Other Scope Basket",
 ]
 
 const TEST_TOKEN_PREFIX = "test-"
@@ -65,6 +67,11 @@ const TEST_USER_EMAILS = [
   "test-edit-other-farmer@example.com",
   "test-revoked-farmer@example.com",
   "test-revoked-deleted@example.com",
+  "test-customer-scope@example.com",
+  "test-customer-scope-other@example.com",
+  "test-farmer-scope@example.com",
+  "test-helper-scope@example.com",
+  "scope-other-farmer@example.com",
 ]
 
 export function createPrisma() {
@@ -86,14 +93,6 @@ async function cleanupTestDataOnce() {
   const prisma = createPrisma()
 
   try {
-    for (const email of TEST_USER_EMAILS) {
-      await prisma.user.delete({ where: { email } }).catch(() => {})
-    }
-
-    await prisma.user.deleteMany({
-      where: { email: { startsWith: TEST_USER_PREFIX } },
-    })
-
     const basketNameFilter = {
       OR: TEST_BASKET_PREFIXES.map((prefix) => ({ name: { startsWith: prefix } })),
     }
@@ -122,14 +121,22 @@ async function cleanupTestDataOnce() {
       },
     })
 
+    await prisma.basket.deleteMany({
+      where: basketNameFilter,
+    })
+
     await prisma.product.deleteMany({
       where: {
         name: { startsWith: "Test " },
       },
     })
 
-    await prisma.basket.deleteMany({
-      where: basketNameFilter,
+    for (const email of TEST_USER_EMAILS) {
+      await prisma.user.delete({ where: { email } }).catch(() => {})
+    }
+
+    await prisma.user.deleteMany({
+      where: { email: { startsWith: TEST_USER_PREFIX } },
     })
   } finally {
     await prisma.$disconnect()
