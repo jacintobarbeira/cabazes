@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
 import bcrypt from "bcryptjs"
 import { auth } from "@/auth"
+import { encode, decode } from "next-auth/jwt"
 import { validatePassword } from "@/lib/password-policy"
 import { auditLog } from "@/lib/audit"
 import { csrfCheck } from "@/lib/csrf"
@@ -43,5 +44,31 @@ export async function POST(request: Request) {
 
   auditLog({ event: "PASSWORD_RESET", userId: session.user.id, email: session.user.email || "" })
 
-  return NextResponse.json({ success: true })
+  const response = NextResponse.json({ success: true })
+
+  const cookieRequest = request as Request & { cookies?: { get: (name: string) => { value: string } | undefined } }
+  const secureToken = cookieRequest.cookies?.get("__Secure-authjs.session-token")?.value
+  const sessionToken = secureToken || cookieRequest.cookies?.get("authjs.session-token")?.value
+  const salt = secureToken ? "__Secure-authjs.session-token" : "authjs.session-token"
+
+  if (sessionToken && process.env.NEXTAUTH_SECRET) {
+    try {
+      const token = await decode({ token: sessionToken, secret: process.env.NEXTAUTH_SECRET, salt })
+      if (token) {
+        token.mustResetPassword = false
+        const newToken = await encode({ token, secret: process.env.NEXTAUTH_SECRET, salt })
+        response.cookies.set(salt, newToken, {
+          httpOnly: true,
+          sameSite: "lax",
+          secure: !!secureToken,
+          path: "/",
+          maxAge: 60 * 60 * 24 * 30,
+        })
+      }
+    } catch (error) {
+      console.error("[reset-password] failed to re-sign session token", error)
+    }
+  }
+
+  return response
 }

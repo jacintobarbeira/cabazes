@@ -10,7 +10,7 @@ import { useTranslation } from "@/lib/i18n/useTranslation"
 
 export default function ResetPasswordPage() {
   const { t } = useTranslation()
-  const { update } = useSession()
+  const { update, data: sessionData } = useSession()
   const router = useRouter()
   const [newPassword, setNewPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -46,8 +46,9 @@ export default function ResetPasswordPage() {
         return
       }
 
-      const updatedSession = await update()
-      if (updatedSession?.user?.role === "FARMER_HELPER" || updatedSession?.user?.role === "FARMER") {
+      const updatedSession = await update({ mustResetPassword: false })
+      const role = updatedSession?.user?.role || sessionData?.user?.role
+      if (role === "FARMER_HELPER" || role === "FARMER") {
         router.push("/farmer/dashboard")
       } else {
         router.push("/my-orders")

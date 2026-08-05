@@ -72,6 +72,8 @@ const TEST_USER_EMAILS = [
   "test-farmer-scope@example.com",
   "test-helper-scope@example.com",
   "scope-other-farmer@example.com",
+  "test-reset-flow@example.com",
+  "test-reset-customer@example.com",
 ]
 
 export function createPrisma() {
