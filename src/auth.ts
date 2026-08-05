@@ -3,6 +3,7 @@ import Credentials from "next-auth/providers/credentials"
 import bcrypt from "bcryptjs"
 import { prisma } from "./lib/db"
 import { checkLockout, recordFailedAttempt, resetLockout } from "@/lib/lockout"
+import { isRateLimited, recordRateLimitAttempt } from "@/lib/rate-limiter"
 import { auditLog } from "@/lib/audit"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
@@ -22,6 +23,12 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const email = credentials.email as string
         const password = credentials.password as string
 
+        const rateCheck = isRateLimited(`login:${email}`)
+        if (!rateCheck.allowed) {
+          auditLog({ event: "LOGIN_RATE_LIMITED", email, retryAfter: rateCheck.retryAfter || 0 })
+          return null
+        }
+
         const { locked, retryAfter } = checkLockout(email)
         if (locked) {
           auditLog({ event: "LOGIN_LOCKED", email, retryAfter: retryAfter || 0 })
@@ -34,12 +41,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
         if (!user || !user.passwordHash) {
           recordFailedAttempt(email)
+          recordRateLimitAttempt(`login:${email}`)
           auditLog({ event: "LOGIN_FAILED", email, reason: "user_not_found" })
           return null
         }
 
         if (user.disabled) {
           recordFailedAttempt(email)
+          recordRateLimitAttempt(`login:${email}`)
           auditLog({ event: "LOGIN_FAILED", email, reason: "account_disabled" })
           return null
         }
@@ -47,6 +56,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         const isMatch = await bcrypt.compare(password, user.passwordHash)
         if (!isMatch) {
           recordFailedAttempt(email)
+          recordRateLimitAttempt(`login:${email}`)
           auditLog({ event: "LOGIN_FAILED", email, reason: "invalid_password" })
           return null
         }

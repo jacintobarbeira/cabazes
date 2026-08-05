@@ -1,7 +1,7 @@
 import { signIn } from "@/auth"
 import { NextResponse } from "next/server"
-import { isRateLimited, recordRateLimitAttempt } from "@/lib/rate-limiter"
-import { checkLockout, recordFailedAttempt, resetLockout } from "@/lib/lockout"
+import { isRateLimited } from "@/lib/rate-limiter"
+import { checkLockout } from "@/lib/lockout"
 import { auditLog } from "@/lib/audit"
 import { csrfCheck } from "@/lib/csrf"
 
@@ -41,13 +41,10 @@ export async function POST(request: Request) {
       redirect: false,
     })
 
-    resetLockout(email)
     auditLog({ event: "LOGIN_SUCCESS", email })
 
     return NextResponse.json({ ok: true })
   } catch {
-    recordFailedAttempt(email)
-    recordRateLimitAttempt(`login:${email}`)
     auditLog({ event: "LOGIN_FAILED", email, reason: "invalid_credentials" })
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
   }
