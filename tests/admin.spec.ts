@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestAdmin, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -11,10 +11,14 @@ test.afterEach(async () => {
 
 test.describe("Admin Features", () => {
   test("admin creates farmer and farmer can login", async ({ page, request }) => {
+    const prisma = createPrisma()
+    const admin = await createTestAdmin(prisma)
+    await prisma.$disconnect()
+
     const adminRes = await request.post("/api/auth/login", {
       data: {
-        email: "admin@cabazes.com",
-        password: "Admin123!",
+        email: admin.email,
+        password: TEST_PASSWORDS.admin,
       },
     })
     expect(adminRes.ok()).toBeTruthy()
@@ -42,22 +46,19 @@ test.describe("Admin Features", () => {
 
   test("admin updates farmer name and phone", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
+    const admin = await createTestAdmin(prisma)
+    const farmer = await createTestFarmer(prisma)
     await prisma.$disconnect()
 
     const adminRes = await request.post("/api/auth/login", {
       data: {
-        email: "admin@cabazes.com",
-        password: "Admin123!",
+        email: admin.email,
+        password: TEST_PASSWORDS.admin,
       },
     })
     expect(adminRes.ok()).toBeTruthy()
 
-    const updateRes = await request.patch(`/api/admin/farmers/${farmer!.id}`, {
+    const updateRes = await request.patch(`/api/admin/farmers/${farmer.id}`, {
       data: {
         name: "Updated Farmer Name",
         phone: "+9999999999",
@@ -71,13 +72,12 @@ test.describe("Admin Features", () => {
 
   test("admin disables farmer and all helpers", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const admin = await createTestAdmin(prisma)
+    const farmer = await createTestFarmer(prisma)
 
     const helperPassword = "TempPass123!"
-    const passwordHash = await require("bcryptjs").hash(helperPassword, 10)
+    const bcrypt = await import("bcryptjs")
+    const passwordHash = await bcrypt.hash(helperPassword, 10)
 
     await prisma.user.create({
       data: {
@@ -86,7 +86,7 @@ test.describe("Admin Features", () => {
         passwordHash,
         role: "FARMER_HELPER",
         phone: "+1234567890",
-        managedById: farmer!.id,
+        managedById: farmer.id,
         mustResetPassword: false,
       },
     })
@@ -95,13 +95,13 @@ test.describe("Admin Features", () => {
 
     const adminRes = await request.post("/api/auth/login", {
       data: {
-        email: "admin@cabazes.com",
-        password: "Admin123!",
+        email: admin.email,
+        password: TEST_PASSWORDS.admin,
       },
     })
     expect(adminRes.ok()).toBeTruthy()
 
-    const disableRes = await request.patch(`/api/admin/farmers/${farmer!.id}/toggle-disabled`)
+    const disableRes = await request.patch(`/api/admin/farmers/${farmer.id}/toggle-disabled`)
     expect(disableRes.ok()).toBeTruthy()
     const result = await disableRes.json()
     expect(result.disabled).toBe(true)
@@ -109,8 +109,8 @@ test.describe("Admin Features", () => {
 
     const farmerLoginRes = await request.post("/api/auth/login", {
       data: {
-        email: "farmer@cabazes.com",
-        password: "Farmer123!",
+        email: farmer.email,
+        password: TEST_PASSWORDS.farmer,
       },
     })
     expect(farmerLoginRes.ok()).toBeFalsy()
@@ -126,18 +126,17 @@ test.describe("Admin Features", () => {
 
   test("admin enables farmer and all helpers can login again", async ({ page, request }) => {
     const prisma = createPrisma()
+    const admin = await createTestAdmin(prisma)
+    const farmer = await createTestFarmer(prisma)
 
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
+    await prisma.user.update({
+      where: { id: farmer.id },
+      data: { disabled: true },
     })
 
     const helperPassword = "TempPass123!"
-    const passwordHash = await require("bcryptjs").hash(helperPassword, 10)
-
-    await prisma.user.update({
-      where: { id: farmer!.id },
-      data: { disabled: true },
-    })
+    const bcrypt = await import("bcryptjs")
+    const passwordHash = await bcrypt.hash(helperPassword, 10)
 
     await prisma.user.create({
       data: {
@@ -146,7 +145,7 @@ test.describe("Admin Features", () => {
         passwordHash,
         role: "FARMER_HELPER",
         phone: "+1234567890",
-        managedById: farmer!.id,
+        managedById: farmer.id,
         mustResetPassword: false,
         disabled: true,
       },
@@ -156,21 +155,21 @@ test.describe("Admin Features", () => {
 
     const adminRes = await request.post("/api/auth/login", {
       data: {
-        email: "admin@cabazes.com",
-        password: "Admin123!",
+        email: admin.email,
+        password: TEST_PASSWORDS.admin,
       },
     })
     expect(adminRes.ok()).toBeTruthy()
 
-    const enableRes = await request.patch(`/api/admin/farmers/${farmer!.id}/toggle-disabled`)
+    const enableRes = await request.patch(`/api/admin/farmers/${farmer.id}/toggle-disabled`)
     expect(enableRes.ok()).toBeTruthy()
     const result = await enableRes.json()
     expect(result.disabled).toBe(false)
 
     const farmerLoginRes = await request.post("/api/auth/login", {
       data: {
-        email: "farmer@cabazes.com",
-        password: "Farmer123!",
+        email: farmer.email,
+        password: TEST_PASSWORDS.farmer,
       },
     })
     expect(farmerLoginRes.ok()).toBeTruthy()
@@ -185,10 +184,14 @@ test.describe("Admin Features", () => {
   })
 
   test("non-admin cannot access admin routes", async ({ page, request }) => {
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
+
     const farmerRes = await request.post("/api/auth/login", {
       data: {
-        email: "farmer@cabazes.com",
-        password: "Farmer123!",
+        email: farmer.email,
+        password: TEST_PASSWORDS.farmer,
       },
     })
     expect(farmerRes.ok()).toBeTruthy()

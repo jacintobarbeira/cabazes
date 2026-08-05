@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -13,20 +13,15 @@ test.describe("Basket Link Email", () => {
   test("farmer can send email for generated links", async ({ request }) => {
     const prisma = createPrisma()
 
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
     const basket = await prisma.basket.create({
       data: {
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         name: "Test Delete Basket",
         orderDeadline: nextWeek,
         price: 20,
@@ -37,7 +32,7 @@ test.describe("Basket Link Email", () => {
 
     const token = await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: "test-email-link-token",
         expiresAt: nextWeek,
@@ -48,8 +43,8 @@ test.describe("Basket Link Email", () => {
 
     const farmerRes = await request.post("/api/auth/login", {
       data: {
-        email: "farmer@cabazes.com",
-        password: "Farmer123!",
+        email: farmer.email,
+        password: TEST_PASSWORDS.farmer,
       },
     })
     expect(farmerRes.ok()).toBeTruthy()
@@ -62,27 +57,22 @@ test.describe("Basket Link Email", () => {
     expect(result.results).toBeDefined()
     expect(result.results.length).toBe(1)
     expect(result.results[0].tokenId).toBe(token.id)
-    expect(result.results[0].email).toBe(customer!.email)
+    expect(result.results[0].email).toBe(customer.email)
     expect(result.results[0].sent).toBe(true)
   })
 
   test("non-farmer cannot send emails for links", async ({ request }) => {
     const prisma = createPrisma()
 
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
 
     const basket = await prisma.basket.create({
       data: {
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         name: "Test Delete Basket",
         orderDeadline: nextWeek,
         price: 20,
@@ -92,7 +82,7 @@ test.describe("Basket Link Email", () => {
 
     const token = await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: "test-email-unauth-token",
         expiresAt: nextWeek,
@@ -103,8 +93,8 @@ test.describe("Basket Link Email", () => {
 
     const customerRes = await request.post("/api/auth/login", {
       data: {
-        email: "alice@example.com",
-        password: "Customer123!",
+        email: customer.email,
+        password: TEST_PASSWORDS.customer,
       },
     })
     expect(customerRes.ok()).toBeTruthy()

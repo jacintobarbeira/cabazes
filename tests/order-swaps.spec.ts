@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -11,33 +11,28 @@ test.afterEach(async () => {
 
 async function createBasketWithSwaps(prisma: any, opts: { allowedSwaps?: number; customerEmail?: string; suffix?: string } = {}) {
   const suffix = opts.suffix || Date.now().toString()
-
-  const farmer = await prisma.user.findUnique({
-    where: { email: "farmer@cabazes.com" },
-  })
-
-  const customer = await prisma.user.findUnique({
-    where: { email: opts.customerEmail || "alice@example.com" },
-  })
+  const farmer = await createTestFarmer(prisma, `swaps-farmer-${suffix}`)
+  const customerEmail = opts?.customerEmail || `swaps-customer-${suffix}@example.com`
+  const customer = await createTestCustomer(prisma, { email: customerEmail })
 
   const carrot = await prisma.product.create({
-    data: { name: `Test Swaps Carrot ${suffix}`, farmerId: farmer!.id, active: true },
+    data: { name: `Test Swaps Carrot ${suffix}`, farmerId: farmer.id, active: true },
   })
 
   const potato = await prisma.product.create({
-    data: { name: `Test Swaps Potato ${suffix}`, farmerId: farmer!.id, active: true },
+    data: { name: `Test Swaps Potato ${suffix}`, farmerId: farmer.id, active: true },
   })
 
   const apple = await prisma.product.create({
-    data: { name: `Test Swaps Apple ${suffix}`, farmerId: farmer!.id, active: true },
+    data: { name: `Test Swaps Apple ${suffix}`, farmerId: farmer.id, active: true },
   })
 
   const banana = await prisma.product.create({
-    data: { name: `Test Swaps Banana ${suffix}`, farmerId: farmer!.id, active: true },
+    data: { name: `Test Swaps Banana ${suffix}`, farmerId: farmer.id, active: true },
   })
 
   const orange = await prisma.product.create({
-    data: { name: `Test Swaps Orange ${suffix}`, farmerId: farmer!.id, active: true },
+    data: { name: `Test Swaps Orange ${suffix}`, farmerId: farmer.id, active: true },
   })
 
   const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -50,7 +45,7 @@ async function createBasketWithSwaps(prisma: any, opts: { allowedSwaps?: number;
       price: 25.0,
       deliveryDay: tomorrow,
       allowedSwaps: opts.allowedSwaps ?? 3,
-      farmerId: farmer!.id,
+      farmerId: farmer.id,
       published: true,
     },
   })
@@ -78,7 +73,7 @@ async function createBasketWithSwaps(prisma: any, opts: { allowedSwaps?: number;
   const tokenValue = "test-swaps-token-" + Date.now()
   await prisma.inviteToken.create({
     data: {
-      customerId: customer!.id,
+      customerId: customer.id,
       basketId: basket.id,
       token: tokenValue,
       expiresAt: nextWeek,
@@ -218,8 +213,8 @@ test.describe("Order Swaps", () => {
 
   test("order with a swap item from another basket is rejected", async ({ request }) => {
     const prisma = createPrisma()
-    const ctx = await createBasketWithSwaps(prisma)
-    const other = await createBasketWithSwaps(prisma, { customerEmail: "bob@example.com" })
+    const ctx = await createBasketWithSwaps(prisma, { suffix: "main-" + Date.now() })
+    const other = await createBasketWithSwaps(prisma, { suffix: "other-" + Date.now() })
     await prisma.$disconnect()
 
     const res = await placeOrder(request, ctx.tokenValue, ctx.basket.id, [

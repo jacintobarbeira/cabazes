@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -9,19 +9,20 @@ test.afterEach(async () => {
   await cleanupTestData()
 })
 
-async function loginAsFarmer(page: any) {
+async function loginAsFarmer(page: any, email: string, password: string) {
   await page.goto("/login")
-  await page.fill('input[name="email"]', "farmer@cabazes.com")
-  await page.fill('input[type="password"]', "Farmer123!")
+  await page.waitForLoadState("networkidle")
+  await page.fill('input[name="email"]', email)
+  await page.fill('input[type="password"]', password)
   await page.click('button[type="submit"]')
-  await page.waitForURL(/.*dashboard/, { timeout: 10000 })
+  await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
 }
 
 test.describe("Deliveries - Order Link", () => {
   test("delivery addresses API returns basketId", async ({ page, request }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({ where: { email: "farmer@cabazes.com" } })
-    const customer = await prisma.user.findUnique({ where: { email: "alice@example.com" } })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const deliveryDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -32,7 +33,7 @@ test.describe("Deliveries - Order Link", () => {
         orderDeadline: nextWeek,
         price: 25.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -40,7 +41,7 @@ test.describe("Deliveries - Order Link", () => {
     const tokenValue = "test-deliveries-link-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,
@@ -60,7 +61,7 @@ test.describe("Deliveries - Order Link", () => {
       },
     })
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const dateKey = deliveryDate.toISOString().split("T")[0]
     const ordersRes = await page.request.get(`/api/deliveries/by-date?date=${dateKey}`)
@@ -74,8 +75,8 @@ test.describe("Deliveries - Order Link", () => {
 
   test("deliveries page renders basket link to basket detail", async ({ page, request }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({ where: { email: "farmer@cabazes.com" } })
-    const customer = await prisma.user.findUnique({ where: { email: "alice@example.com" } })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const deliveryDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -86,7 +87,7 @@ test.describe("Deliveries - Order Link", () => {
         orderDeadline: nextWeek,
         price: 25.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -94,7 +95,7 @@ test.describe("Deliveries - Order Link", () => {
     const tokenValue = "test-deliveries-link-ui-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,
@@ -114,7 +115,7 @@ test.describe("Deliveries - Order Link", () => {
       },
     })
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/deliveries")
 
     const dateKey = deliveryDate.toISOString().split("T")[0]
@@ -131,8 +132,8 @@ test.describe("Deliveries - Order Link", () => {
 
   test("multiple orders show links to their respective baskets", async ({ page, request }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({ where: { email: "farmer@cabazes.com" } })
-    const customer = await prisma.user.findUnique({ where: { email: "alice@example.com" } })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const deliveryDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -143,7 +144,7 @@ test.describe("Deliveries - Order Link", () => {
         orderDeadline: nextWeek,
         price: 25.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -154,7 +155,7 @@ test.describe("Deliveries - Order Link", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -164,7 +165,7 @@ test.describe("Deliveries - Order Link", () => {
 
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket1.id,
         token: token1,
         expiresAt: nextWeek,
@@ -173,7 +174,7 @@ test.describe("Deliveries - Order Link", () => {
 
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket2.id,
         token: token2,
         expiresAt: nextWeek,
@@ -204,7 +205,7 @@ test.describe("Deliveries - Order Link", () => {
       },
     })
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const dateKey = deliveryDate.toISOString().split("T")[0]
     const ordersRes = await page.request.get(`/api/deliveries/by-date?date=${dateKey}`)

@@ -2,6 +2,8 @@ import { defineConfig, devices } from "@playwright/test"
 
 export default defineConfig({
   testDir: "./tests",
+  globalSetup: "./tests/globalSetup.ts",
+  globalTeardown: "./tests/globalTeardown.ts",
   fullyParallel: false,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -30,5 +32,8 @@ export default defineConfig({
     command: "npm run dev",
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
+    env: {
+      DATABASE_URL: "file:./prisma/test.db",
+    },
   },
 })

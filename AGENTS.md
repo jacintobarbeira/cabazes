@@ -17,3 +17,4 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - When investigating failures, read/grep the results file for the exact failing test names and error messages before changing code.
 - When fixing failed tests, re-run only the failed tests. Only run full suites for final confirmation.
 - Tests must not depend on seed data. All test data must be loaded at the beginning of the test and deleted after the test completes.
+- Tests must run against a separate database from development. The test database is `prisma/test.db`, created fresh by `tests/globalSetup.ts` and deleted by `tests/globalTeardown.ts`. Never use `prisma/dev.db` in tests.

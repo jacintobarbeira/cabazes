@@ -1,27 +1,8 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
-
-const TEST_FARMER = "test-login-farmer@example.com"
-const TEST_CUSTOMER = "test-login-customer@example.com"
-const PASSWORD = "Login123!"
-
-async function createTestUsers() {
-  const prisma = createPrisma()
-  const bcrypt = await import("bcryptjs")
-  const passwordHash = await bcrypt.hash(PASSWORD, 10)
-
-  await prisma.user.create({
-    data: { email: TEST_FARMER, name: "Test Farmer", passwordHash, role: "FARMER", phone: "+1111111111" },
-  })
-  await prisma.user.create({
-    data: { email: TEST_CUSTOMER, name: "Test Customer", passwordHash, role: "CUSTOMER", phone: "+2222222222", address: "123 Main St", city: "Springfield", postalCode: "12345" },
-  })
-  await prisma.$disconnect()
-}
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
-  await createTestUsers()
 })
 
 test.afterEach(async () => {
@@ -30,10 +11,15 @@ test.afterEach(async () => {
 
 test.describe("Login", () => {
   test("should redirect to farmer dashboard after successful login", async ({ page }) => {
-    await page.goto("/login")
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
 
-    await page.fill('input[name="email"]', TEST_FARMER)
-    await page.fill('input[type="password"]', PASSWORD)
+    await page.goto("/login")
+    await page.waitForLoadState("networkidle")
+
+    await page.fill('input[name="email"]', farmer.email)
+    await page.fill('input[type="password"]', TEST_PASSWORDS.farmer)
     await page.click('button[type="submit"]')
 
     await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
@@ -52,10 +38,14 @@ test.describe("Login", () => {
   })
 
   test("should redirect customer to my-orders after login", async ({ page }) => {
+    const prisma = createPrisma()
+    const customer = await createTestCustomer(prisma)
+    await prisma.$disconnect()
+
     await page.goto("/login")
 
-    await page.fill('input[name="email"]', TEST_CUSTOMER)
-    await page.fill('input[type="password"]', PASSWORD)
+    await page.fill('input[name="email"]', customer.email)
+    await page.fill('input[type="password"]', TEST_PASSWORDS.customer)
     await page.click('button[type="submit"]')
 
     await expect(page).toHaveURL(/.*my-orders/, { timeout: 10000 })

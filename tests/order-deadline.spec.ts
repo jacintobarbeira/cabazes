@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -17,13 +17,8 @@ test.describe("Order Deadline", () => {
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const basket = await prisma.basket.create({
       data: {
@@ -32,7 +27,7 @@ test.describe("Order Deadline", () => {
         orderDeadline: yesterday,
         price: 25.0,
         deliveryDay: tomorrow,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -40,7 +35,7 @@ test.describe("Order Deadline", () => {
     const tokenValue = "test-expired-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,
@@ -73,13 +68,8 @@ test.describe("Order Deadline", () => {
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
 
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "bob@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const basket = await prisma.basket.create({
       data: {
@@ -88,7 +78,7 @@ test.describe("Order Deadline", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: tomorrow,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -96,7 +86,7 @@ test.describe("Order Deadline", () => {
     const tokenValue = "test-active-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,

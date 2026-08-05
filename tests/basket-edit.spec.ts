@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -9,22 +9,27 @@ test.afterEach(async () => {
   await cleanupTestData()
 })
 
-async function loginAsFarmer(request: any) {
+async function loginAsFarmer(request: any, farmer: { email: string }) {
   const res = await request.post("/api/auth/login", {
-    data: { email: "farmer@cabazes.com", password: "Farmer123!" },
+    data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
   })
   expect(res.ok()).toBeTruthy()
 }
 
-async function createDraftBasket(prisma: any) {
-  const farmer = await prisma.user.findUnique({
-    where: { email: "farmer@cabazes.com" },
-  })
+async function loginAsFarmerPage(page: any, farmer: { email: string }) {
+  await page.goto("/login")
+  await page.waitForLoadState("networkidle")
+  await page.fill('input[name="email"]', farmer.email)
+  await page.fill('input[type="password"]', TEST_PASSWORDS.farmer)
+  await page.click('button[type="submit"]')
+  await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
+}
 
+async function createDraftBasket(prisma: any, farmerId: string) {
   const carrot = await prisma.product.create({
     data: {
       name: "Test Edit Carrot",
-      farmerId: farmer!.id,
+      farmerId,
       active: true,
     },
   })
@@ -32,7 +37,7 @@ async function createDraftBasket(prisma: any) {
   const potato = await prisma.product.create({
     data: {
       name: "Test Edit Potato",
-      farmerId: farmer!.id,
+      farmerId,
       active: true,
     },
   })
@@ -40,7 +45,7 @@ async function createDraftBasket(prisma: any) {
   const apple = await prisma.product.create({
     data: {
       name: "Test Edit Apple",
-      farmerId: farmer!.id,
+      farmerId,
       active: true,
     },
   })
@@ -48,7 +53,7 @@ async function createDraftBasket(prisma: any) {
   const banana = await prisma.product.create({
     data: {
       name: "Test Edit Banana",
-      farmerId: farmer!.id,
+      farmerId,
       active: true,
     },
   })
@@ -64,7 +69,7 @@ async function createDraftBasket(prisma: any) {
       price: 25.5,
       deliveryDay: nextWeek,
       allowedSwaps: 3,
-      farmerId: farmer!.id,
+      farmerId,
       published: false,
     },
   })
@@ -99,10 +104,11 @@ async function createDraftBasket(prisma: any) {
 test.describe("Basket Edit", () => {
   test("farmer edits basket details and allowedSwaps while draft", async ({ request }) => {
     const prisma = createPrisma()
-    const { basket } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket } = await createDraftBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const newDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const newDelivery = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
@@ -131,10 +137,11 @@ test.describe("Basket Edit", () => {
 
   test("farmer replaces base and swap items while draft", async ({ request }) => {
     const prisma = createPrisma()
-    const { basket, banana, carrot } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket, banana, carrot } = await createDraftBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const res = await request.put(`/api/baskets/${basket.id}/contents`, {
       data: {
@@ -158,10 +165,11 @@ test.describe("Basket Edit", () => {
 
   test("contents replace updates allowedSwaps", async ({ request }) => {
     const prisma = createPrisma()
-    const { basket } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket } = await createDraftBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const res = await request.put(`/api/baskets/${basket.id}/contents`, {
       data: { items: [], allowedSwaps: "1" },
@@ -174,10 +182,11 @@ test.describe("Basket Edit", () => {
 
   test("farmer can remove all items", async ({ request }) => {
     const prisma = createPrisma()
-    const { basket } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket } = await createDraftBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const res = await request.put(`/api/baskets/${basket.id}/contents`, {
       data: { items: [] },
@@ -189,12 +198,11 @@ test.describe("Basket Edit", () => {
 
   test("helper can edit a draft basket", async ({ request }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
 
     const helperPassword = "TempPass123!"
-    const passwordHash = await require("bcryptjs").hash(helperPassword, 10)
+    const bcrypt = await import("bcryptjs")
+    const passwordHash = await bcrypt.hash(helperPassword, 10)
 
     await prisma.user.create({
       data: {
@@ -203,12 +211,12 @@ test.describe("Basket Edit", () => {
         passwordHash,
         role: "FARMER_HELPER",
         phone: "+1234567890",
-        managedById: farmer!.id,
+        managedById: farmer.id,
         mustResetPassword: false,
       },
     })
 
-    const { basket } = await createDraftBasket(prisma)
+    const { basket } = await createDraftBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
     const loginRes = await request.post("/api/auth/login", {
@@ -237,14 +245,15 @@ test.describe("Basket Edit", () => {
 
   test("published basket cannot be edited", async ({ request }) => {
     const prisma = createPrisma()
-    const { basket } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket } = await createDraftBasket(prisma, farmer.id)
     await prisma.basket.update({
       where: { id: basket.id },
       data: { published: true },
     })
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const patchRes = await request.patch(`/api/baskets/${basket.id}`, {
       data: { name: "Test Edit Basket Updated" },
@@ -261,10 +270,11 @@ test.describe("Basket Edit", () => {
 
   test("contents replace rejects products from another farmer", async ({ request }) => {
     const prisma = createPrisma()
-    const { basket, carrot } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket, carrot } = await createDraftBasket(prisma, farmer.id)
 
-    const otherFarmerPassword = "TempPass123!"
-    const otherFarmerHash = await require("bcryptjs").hash(otherFarmerPassword, 10)
+    const bcrypt = await import("bcryptjs")
+    const otherFarmerHash = await bcrypt.hash("TempPass123!", 10)
 
     const otherFarmer = await prisma.user.create({
       data: {
@@ -285,7 +295,7 @@ test.describe("Basket Edit", () => {
 
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const res = await request.put(`/api/baskets/${basket.id}/contents`, {
       data: {
@@ -301,10 +311,11 @@ test.describe("Basket Edit", () => {
 
   test("contents replace rejects overlapping base and swap products", async ({ request }) => {
     const prisma = createPrisma()
-    const { basket, carrot } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket, carrot } = await createDraftBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const overlap = await request.put(`/api/baskets/${basket.id}/contents`, {
       data: {
@@ -320,11 +331,13 @@ test.describe("Basket Edit", () => {
 
   test("non-farmer cannot edit a basket", async ({ request }) => {
     const prisma = createPrisma()
-    const { basket } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
+    const { basket } = await createDraftBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
     const customerRes = await request.post("/api/auth/login", {
-      data: { email: "alice@example.com", password: "Customer123!" },
+      data: { email: customer.email, password: TEST_PASSWORDS.customer },
     })
     expect(customerRes.ok()).toBeTruthy()
 
@@ -340,7 +353,11 @@ test.describe("Basket Edit", () => {
   })
 
   test("edit of non-existent basket returns 404", async ({ request }) => {
-    await loginAsFarmer(request)
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
+
+    await loginAsFarmer(request, farmer)
 
     const patchRes = await request.patch("/api/baskets/non-existent-id", {
       data: { name: "Test Edit Basket Updated" },
@@ -355,14 +372,11 @@ test.describe("Basket Edit", () => {
 
   test("draft basket shows edit page with prefilled data and saves changes", async ({ page }) => {
     const prisma = createPrisma()
-    const { basket } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket } = await createDraftBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await page.goto("/login")
-    await page.fill('input[name="email"]', "farmer@cabazes.com")
-    await page.fill('input[type="password"]', "Farmer123!")
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
+    await loginAsFarmerPage(page, farmer)
 
     await page.goto(`/farmer/baskets/${basket.id}/edit`)
     await expect(page.getByRole("heading", { name: "Edit Basket" })).toBeVisible()
@@ -388,18 +402,15 @@ test.describe("Basket Edit", () => {
 
   test("published basket has no edit button and edit page is blocked", async ({ page }) => {
     const prisma = createPrisma()
-    const { basket } = await createDraftBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const { basket } = await createDraftBasket(prisma, farmer.id)
     await prisma.basket.update({
       where: { id: basket.id },
       data: { published: true },
     })
     await prisma.$disconnect()
 
-    await page.goto("/login")
-    await page.fill('input[name="email"]', "farmer@cabazes.com")
-    await page.fill('input[type="password"]', "Farmer123!")
-    await page.click('button[type="submit"]')
-    await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
+    await loginAsFarmerPage(page, farmer)
 
     await page.goto(`/farmer/baskets/${basket.id}`)
     await expect(page.getByRole("heading", { name: "Test Edit Basket" })).toBeVisible()

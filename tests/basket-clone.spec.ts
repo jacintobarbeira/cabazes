@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -9,22 +9,18 @@ test.afterEach(async () => {
   await cleanupTestData()
 })
 
-async function loginAsFarmer(request: any) {
+async function loginAsFarmer(request: any, farmer: { email: string }) {
   const res = await request.post("/api/auth/login", {
-    data: { email: "farmer@cabazes.com", password: "Farmer123!" },
+    data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
   })
   expect(res.ok()).toBeTruthy()
 }
 
-async function createSourceBasket(prisma: any) {
-  const farmer = await prisma.user.findUnique({
-    where: { email: "farmer@cabazes.com" },
-  })
-
+async function createSourceBasket(prisma: any, farmerId: string) {
   const product1 = await prisma.product.create({
     data: {
       name: "Test Clone Carrot",
-      farmerId: farmer!.id,
+      farmerId,
       active: true,
     },
   })
@@ -32,7 +28,7 @@ async function createSourceBasket(prisma: any) {
   const product2 = await prisma.product.create({
     data: {
       name: "Test Clone Potato",
-      farmerId: farmer!.id,
+      farmerId,
       active: true,
     },
   })
@@ -40,7 +36,7 @@ async function createSourceBasket(prisma: any) {
   const product3 = await prisma.product.create({
     data: {
       name: "Test Clone Apple",
-      farmerId: farmer!.id,
+      farmerId,
       active: true,
     },
   })
@@ -56,7 +52,7 @@ async function createSourceBasket(prisma: any) {
       price: 25.5,
       deliveryDay: tomorrow,
       allowedSwaps: 3,
-      farmerId: farmer!.id,
+      farmerId,
       published: true,
     },
   })
@@ -91,10 +87,11 @@ async function createSourceBasket(prisma: any) {
 test.describe("Basket Clone", () => {
   test("farmer clones basket with base and swap items", async ({ request }) => {
     const prisma = createPrisma()
-    const basket = await createSourceBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const basket = await createSourceBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const newDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const newDelivery = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
@@ -129,10 +126,11 @@ test.describe("Basket Clone", () => {
 
   test("clone requires new deadline and delivery dates", async ({ request }) => {
     const prisma = createPrisma()
-    const basket = await createSourceBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const basket = await createSourceBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const newDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const newDelivery = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
@@ -158,10 +156,11 @@ test.describe("Basket Clone", () => {
 
   test("clone rejects deadline after delivery day", async ({ request }) => {
     const prisma = createPrisma()
-    const basket = await createSourceBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const basket = await createSourceBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const newDeadline = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
     const newDelivery = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -179,10 +178,11 @@ test.describe("Basket Clone", () => {
 
   test("clone rejects duplicate name and delivery day", async ({ request }) => {
     const prisma = createPrisma()
-    const basket = await createSourceBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const basket = await createSourceBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
-    await loginAsFarmer(request)
+    await loginAsFarmer(request, farmer)
 
     const newDeadline = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const newDelivery = new Date(Date.now() + 15 * 24 * 60 * 60 * 1000)
@@ -209,11 +209,13 @@ test.describe("Basket Clone", () => {
 
   test("non-farmer cannot clone a basket", async ({ request }) => {
     const prisma = createPrisma()
-    const basket = await createSourceBasket(prisma)
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
+    const basket = await createSourceBasket(prisma, farmer.id)
     await prisma.$disconnect()
 
     const customerRes = await request.post("/api/auth/login", {
-      data: { email: "alice@example.com", password: "Customer123!" },
+      data: { email: customer.email, password: TEST_PASSWORDS.customer },
     })
     expect(customerRes.ok()).toBeTruthy()
 
@@ -229,7 +231,11 @@ test.describe("Basket Clone", () => {
   })
 
   test("clone of non-existent basket returns 404", async ({ request }) => {
-    await loginAsFarmer(request)
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
+
+    await loginAsFarmer(request, farmer)
 
     const cloneRes = await request.post("/api/baskets/non-existent-id/clone", {
       data: {

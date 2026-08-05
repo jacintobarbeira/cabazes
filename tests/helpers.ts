@@ -85,11 +85,48 @@ const TEST_USER_EMAILS = [
   "test-newfeat-customer@example.com",
   "test-newfeat-farmera@example.com",
   "test-newfeat-farmerb@example.com",
+  "test-constraints-farmer@example.com",
+  "test-seed-farmer@example.com",
+  "test-seed-customer@example.com",
+  "test-seed-admin@example.com",
 ]
+
+export const TEST_PASSWORDS = {
+  farmer: "TestFarmer123!",
+  customer: "TestCustomer123!",
+  admin: "TestAdmin123!",
+}
+
+export async function createTestFarmer(prisma: any, opts?: { email?: string } | string) {
+  const email = typeof opts === "string" ? `${opts}@example.com` : (opts?.email || "test-seed-farmer@example.com")
+  const bcrypt = await import("bcryptjs")
+  const hash = await bcrypt.hash(TEST_PASSWORDS.farmer, 10)
+  return prisma.user.create({
+    data: { email, name: "Test Farmer", passwordHash: hash, role: "FARMER", phone: "+1111111111" },
+  })
+}
+
+export async function createTestCustomer(prisma: any, opts?: { email?: string } | string) {
+  const email = typeof opts === "string" ? `${opts}@example.com` : (opts?.email || "test-seed-customer@example.com")
+  const bcrypt = await import("bcryptjs")
+  const hash = await bcrypt.hash(TEST_PASSWORDS.customer, 10)
+  return prisma.user.create({
+    data: { email, name: "Test Customer", passwordHash: hash, role: "CUSTOMER", phone: "+2222222222", address: "123 Test St", city: "Testville", postalCode: "00000" },
+  })
+}
+
+export async function createTestAdmin(prisma: any, opts?: { email?: string } | string) {
+  const email = typeof opts === "string" ? `${opts}@example.com` : (opts?.email || "test-seed-admin@example.com")
+  const bcrypt = await import("bcryptjs")
+  const hash = await bcrypt.hash(TEST_PASSWORDS.admin, 10)
+  return prisma.user.create({
+    data: { email, name: "Test Admin", passwordHash: hash, role: "ADMINISTRATOR", phone: "+3333333333" },
+  })
+}
 
 export function createPrisma() {
   const adapter = new PrismaLibSql({
-    url: process.env.DATABASE_URL || "file:./prisma/dev.db",
+    url: process.env.DATABASE_URL || "file:./prisma/test.db",
   })
   return new PrismaClient({ adapter })
 }
@@ -103,40 +140,30 @@ function isTransientError(err: unknown): boolean {
 }
 
 async function cleanupTestDataOnce() {
+  // Small delay to let app server release DB connections
+  await new Promise((resolve) => setTimeout(resolve, 200))
+
   const prisma = createPrisma()
 
   try {
-    const basketNameFilter = {
-      OR: TEST_BASKET_PREFIXES.map((prefix) => ({ name: { startsWith: prefix } })),
+    const baskets = await prisma.basket.findMany({
+      where: {
+        OR: TEST_BASKET_PREFIXES.map((prefix) => ({ name: { startsWith: prefix } })),
+      },
+      select: { id: true },
+    })
+
+    const basketIds = baskets.map((b) => b.id)
+
+    if (basketIds.length > 0) {
+      await prisma.order.deleteMany({
+        where: { basketId: { in: basketIds } },
+      })
+
+      await prisma.basket.deleteMany({
+        where: { id: { in: basketIds } },
+      })
     }
-
-    await prisma.orderSwapChoice.deleteMany({
-      where: {
-        order: {
-          basket: basketNameFilter,
-        },
-      },
-    })
-
-    await prisma.order.deleteMany({
-      where: {
-        basket: basketNameFilter,
-      },
-    })
-
-    await prisma.inviteToken.deleteMany({
-      where: { token: { startsWith: TEST_TOKEN_PREFIX } },
-    })
-
-    await prisma.basketItem.deleteMany({
-      where: {
-        basket: basketNameFilter,
-      },
-    })
-
-    await prisma.basket.deleteMany({
-      where: basketNameFilter,
-    })
 
     await prisma.product.deleteMany({
       where: {
@@ -177,7 +204,7 @@ export async function cleanupTestData() {
       if (attempt === 3 || !isTransientError(err)) {
         throw err
       }
-      await new Promise((resolve) => setTimeout(resolve, 500 * attempt))
+      await new Promise((resolve) => setTimeout(resolve, 1000 * attempt))
     }
   }
 }

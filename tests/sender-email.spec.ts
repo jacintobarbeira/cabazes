@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -11,8 +11,12 @@ test.afterEach(async () => {
 
 test.describe("Sender Email", () => {
   test("farmer can set and retrieve senderEmail via settings API", async ({ request }) => {
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
+
     const farmerRes = await request.post("/api/auth/login", {
-      data: { email: "farmer@cabazes.com", password: "Farmer123!" },
+      data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
     })
     expect(farmerRes.ok()).toBeTruthy()
 
@@ -31,17 +35,15 @@ test.describe("Sender Email", () => {
 
   test("farmer can clear senderEmail", async ({ request }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
     await prisma.user.update({
-      where: { id: farmer!.id },
+      where: { id: farmer.id },
       data: { senderEmail: "myfarm@example.com" },
     })
     await prisma.$disconnect()
 
     const farmerRes = await request.post("/api/auth/login", {
-      data: { email: "farmer@cabazes.com", password: "Farmer123!" },
+      data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
     })
     expect(farmerRes.ok()).toBeTruthy()
 
@@ -54,8 +56,12 @@ test.describe("Sender Email", () => {
   })
 
   test("non-farmer cannot set senderEmail", async ({ request }) => {
+    const prisma = createPrisma()
+    const customer = await createTestCustomer(prisma)
+    await prisma.$disconnect()
+
     const customerRes = await request.post("/api/auth/login", {
-      data: { email: "alice@example.com", password: "Customer123!" },
+      data: { email: customer.email, password: TEST_PASSWORDS.customer },
     })
     expect(customerRes.ok()).toBeTruthy()
 
@@ -68,16 +74,11 @@ test.describe("Sender Email", () => {
 
   test("send-email route uses farmer senderEmail when set", async ({ request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     await prisma.user.update({
-      where: { id: farmer!.id },
+      where: { id: farmer.id },
       data: { senderEmail: "myfarm@example.com" },
     })
 
@@ -86,7 +87,7 @@ test.describe("Sender Email", () => {
 
     const basket = await prisma.basket.create({
       data: {
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         name: "Test Sender Email Basket",
         orderDeadline: nextWeek,
         price: 20,
@@ -97,7 +98,7 @@ test.describe("Sender Email", () => {
 
     const token = await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: "test-sender-email-token",
         expiresAt: nextWeek,
@@ -106,7 +107,7 @@ test.describe("Sender Email", () => {
     await prisma.$disconnect()
 
     const farmerRes = await request.post("/api/auth/login", {
-      data: { email: "farmer@cabazes.com", password: "Farmer123!" },
+      data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
     })
     expect(farmerRes.ok()).toBeTruthy()
 
@@ -120,15 +121,16 @@ test.describe("Sender Email", () => {
 
   test("farmer settings page renders senderEmail field", async ({ page }) => {
     const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
     await prisma.user.update({
-      where: { email: "farmer@cabazes.com" },
+      where: { id: farmer.id },
       data: { senderEmail: "myfarm@example.com" },
     })
     await prisma.$disconnect()
 
     await page.goto("/login")
-    await page.fill('input[name="email"]', "farmer@cabazes.com")
-    await page.fill('input[type="password"]', "Farmer123!")
+    await page.fill('input[name="email"]', farmer.email)
+    await page.fill('input[type="password"]', TEST_PASSWORDS.farmer)
     await page.click('button[type="submit"]')
     await page.waitForURL(/.*dashboard/, { timeout: 10000 })
 

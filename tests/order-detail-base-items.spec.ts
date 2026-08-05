@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -9,18 +9,20 @@ test.afterEach(async () => {
   await cleanupTestData()
 })
 
-async function loginAsCustomer(page: any) {
+async function loginAsCustomer(page: any, email: string, password: string) {
   await page.goto("/login")
-  await page.fill('input[name="email"]', "alice@example.com")
-  await page.fill('input[type="password"]', "Customer123!")
+  await page.waitForLoadState("networkidle")
+  await page.fill('input[name="email"]', email)
+  await page.fill('input[type="password"]', password)
   await page.click('button[type="submit"]')
   await page.waitForURL(/.*my-orders|.*dashboard/, { timeout: 10000 })
 }
 
-async function loginAsFarmer(page: any) {
+async function loginAsFarmer(page: any, email: string, password: string) {
   await page.goto("/login")
-  await page.fill('input[name="email"]', "farmer@cabazes.com")
-  await page.fill('input[type="password"]', "Farmer123!")
+  await page.waitForLoadState("networkidle")
+  await page.fill('input[name="email"]', email)
+  await page.fill('input[type="password"]', password)
   await page.click('button[type="submit"]')
   await page.waitForURL(/.*dashboard/, { timeout: 10000 })
 }
@@ -28,17 +30,17 @@ async function loginAsFarmer(page: any) {
 test.describe("Order Detail - Base Items", () => {
   test("customer orders API returns baseItems for each order", async ({ page }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({ where: { email: "farmer@cabazes.com" } })
-    const customer = await prisma.user.findUnique({ where: { email: "alice@example.com" } })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const carrot = await prisma.product.create({
-      data: { name: "Test Order Detail Carrot", farmerId: farmer!.id, active: true },
+      data: { name: "Test Order Detail Carrot", farmerId: farmer.id, active: true },
     })
     const potato = await prisma.product.create({
-      data: { name: "Test Order Detail Potato", farmerId: farmer!.id, active: true },
+      data: { name: "Test Order Detail Potato", farmerId: farmer.id, active: true },
     })
     const apple = await prisma.product.create({
-      data: { name: "Test Order Detail Apple", farmerId: farmer!.id, active: true },
+      data: { name: "Test Order Detail Apple", farmerId: farmer.id, active: true },
     })
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -51,7 +53,7 @@ test.describe("Order Detail - Base Items", () => {
         price: 25.0,
         deliveryDay: tomorrow,
         allowedSwaps: 2,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -69,7 +71,7 @@ test.describe("Order Detail - Base Items", () => {
     const tokenValue = "test-order-detail-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,
@@ -89,7 +91,7 @@ test.describe("Order Detail - Base Items", () => {
       },
     })
 
-    await loginAsCustomer(page)
+    await loginAsCustomer(page, customer.email, TEST_PASSWORDS.customer)
 
     const meRes = await page.request.get("/api/customers/me/orders")
     expect(meRes.ok()).toBeTruthy()
@@ -104,11 +106,11 @@ test.describe("Order Detail - Base Items", () => {
 
   test("farmer orders API returns baseItems for each order", async ({ page }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({ where: { email: "farmer@cabazes.com" } })
-    const customer = await prisma.user.findUnique({ where: { email: "alice@example.com" } })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const lettuce = await prisma.product.create({
-      data: { name: "Test Order Detail Lettuce", farmerId: farmer!.id, active: true },
+      data: { name: "Test Order Detail Lettuce", farmerId: farmer.id, active: true },
     })
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -121,7 +123,7 @@ test.describe("Order Detail - Base Items", () => {
         price: 20.0,
         deliveryDay: tomorrow,
         allowedSwaps: 0,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -133,7 +135,7 @@ test.describe("Order Detail - Base Items", () => {
     const tokenValue = "test-order-detail-farmer-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,
@@ -153,7 +155,7 @@ test.describe("Order Detail - Base Items", () => {
       },
     })
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const ordersRes = await page.request.get("/api/orders")
     expect(ordersRes.ok()).toBeTruthy()
@@ -167,14 +169,14 @@ test.describe("Order Detail - Base Items", () => {
 
   test("order with swaps shows baseItems and swapChoices separately", async ({ page }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({ where: { email: "farmer@cabazes.com" } })
-    const customer = await prisma.user.findUnique({ where: { email: "alice@example.com" } })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const carrot = await prisma.product.create({
-      data: { name: "Test Order Detail Mixed Carrot", farmerId: farmer!.id, active: true },
+      data: { name: "Test Order Detail Mixed Carrot", farmerId: farmer.id, active: true },
     })
     const apple = await prisma.product.create({
-      data: { name: "Test Order Detail Mixed Apple", farmerId: farmer!.id, active: true },
+      data: { name: "Test Order Detail Mixed Apple", farmerId: farmer.id, active: true },
     })
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -187,7 +189,7 @@ test.describe("Order Detail - Base Items", () => {
         price: 25.0,
         deliveryDay: tomorrow,
         allowedSwaps: 1,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -202,7 +204,7 @@ test.describe("Order Detail - Base Items", () => {
     const tokenValue = "test-order-detail-mixed-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,
@@ -222,7 +224,7 @@ test.describe("Order Detail - Base Items", () => {
       },
     })
 
-    await loginAsCustomer(page)
+    await loginAsCustomer(page, customer.email, TEST_PASSWORDS.customer)
 
     const meRes = await page.request.get("/api/customers/me/orders")
     expect(meRes.ok()).toBeTruthy()
@@ -238,8 +240,8 @@ test.describe("Order Detail - Base Items", () => {
 
   test("order without base items returns empty baseItems", async ({ page }) => {
     const prisma = createPrisma()
-    const farmer = await prisma.user.findUnique({ where: { email: "farmer@cabazes.com" } })
-    const customer = await prisma.user.findUnique({ where: { email: "alice@example.com" } })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -251,7 +253,7 @@ test.describe("Order Detail - Base Items", () => {
         price: 10.0,
         deliveryDay: tomorrow,
         allowedSwaps: 0,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -259,7 +261,7 @@ test.describe("Order Detail - Base Items", () => {
     const tokenValue = "test-order-detail-empty-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,
@@ -279,7 +281,7 @@ test.describe("Order Detail - Base Items", () => {
       },
     })
 
-    await loginAsCustomer(page)
+    await loginAsCustomer(page, customer.email, TEST_PASSWORDS.customer)
 
     const meRes = await page.request.get("/api/customers/me/orders")
     expect(meRes.ok()).toBeTruthy()

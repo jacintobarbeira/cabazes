@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, createTestAdmin, TEST_PASSWORDS } from "./helpers"
 
 const TEST_FARMER_EMAIL = "test-delete-farmer@example.com"
 const TEST_HELPER_EMAIL = "test-delete-helper@example.com"
@@ -12,35 +12,27 @@ test.afterEach(async () => {
   await cleanupTestData()
 })
 
-async function createTestFarmer(prisma: any) {
-  const passwordHash = await require("bcryptjs").hash("TempPass123!", 10)
-  return prisma.user.create({
-    data: {
-      email: TEST_FARMER_EMAIL,
-      name: "Test Delete Farmer",
-      passwordHash,
-      role: "FARMER",
-      phone: "+1234567890",
-      mustResetPassword: false,
-    },
-  })
-}
-
 test.describe("Admin Delete Farmer", () => {
   test("admin deletes farmer and all associated data", async ({ request }) => {
     const prisma = createPrisma()
 
-    const admin = await prisma.user.findUnique({
-      where: { email: "admin@cabazes.com" },
+    const admin = await createTestAdmin(prisma)
+    const customer = await createTestCustomer(prisma)
+
+    const bcrypt = await import("bcryptjs")
+    const passwordHash = await bcrypt.hash("TempPass123!", 10)
+    const testFarmer = await prisma.user.create({
+      data: {
+        email: TEST_FARMER_EMAIL,
+        name: "Test Delete Farmer",
+        passwordHash,
+        role: "FARMER",
+        phone: "+1234567890",
+        mustResetPassword: false,
+      },
     })
 
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
-
-    const testFarmer = await createTestFarmer(prisma)
-
-    const helperPasswordHash = await require("bcryptjs").hash("TempPass123!", 10)
+    const helperPasswordHash = await bcrypt.hash("TempPass123!", 10)
 
     await prisma.user.create({
       data: {
@@ -85,7 +77,7 @@ test.describe("Admin Delete Farmer", () => {
 
     const token = await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: "test-delete-token",
         expiresAt: nextWeek,
@@ -94,13 +86,13 @@ test.describe("Admin Delete Farmer", () => {
 
     await prisma.order.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         inviteTokenId: token.id,
         status: "PENDING",
         deliveryAddress: "123 Test St",
         customerName: "Test Customer",
-        customerEmail: customer!.email,
+        customerEmail: customer.email,
       },
     })
 
@@ -108,8 +100,8 @@ test.describe("Admin Delete Farmer", () => {
 
     const adminRes = await request.post("/api/auth/login", {
       data: {
-        email: "admin@cabazes.com",
-        password: "Admin123!",
+        email: admin.email,
+        password: TEST_PASSWORDS.admin,
       },
     })
     expect(adminRes.ok()).toBeTruthy()
@@ -151,10 +143,14 @@ test.describe("Admin Delete Farmer", () => {
   })
 
   test("non-admin cannot delete a farmer", async ({ request }) => {
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
+
     const farmerRes = await request.post("/api/auth/login", {
       data: {
-        email: "farmer@cabazes.com",
-        password: "Farmer123!",
+        email: farmer.email,
+        password: TEST_PASSWORDS.farmer,
       },
     })
     expect(farmerRes.ok()).toBeTruthy()
@@ -165,10 +161,14 @@ test.describe("Admin Delete Farmer", () => {
   })
 
   test("delete non-existent farmer returns 404", async ({ request }) => {
+    const prisma = createPrisma()
+    const admin = await createTestAdmin(prisma)
+    await prisma.$disconnect()
+
     const adminRes = await request.post("/api/auth/login", {
       data: {
-        email: "admin@cabazes.com",
-        password: "Admin123!",
+        email: admin.email,
+        password: TEST_PASSWORDS.admin,
       },
     })
     expect(adminRes.ok()).toBeTruthy()

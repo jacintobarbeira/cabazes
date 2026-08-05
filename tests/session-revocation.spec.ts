@@ -1,8 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
-
-const TEST_FARMER_EMAIL = "test-revoked-farmer@example.com"
-const TEST_DELETED_EMAIL = "test-revoked-deleted@example.com"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestAdmin, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -12,32 +9,18 @@ test.afterEach(async () => {
   await cleanupTestData()
 })
 
-async function createFarmer(email: string) {
-  const prisma = createPrisma()
-  const passwordHash = await require("bcryptjs").hash("TempPass123!", 10)
-  const farmer = await prisma.user.create({
-    data: {
-      email,
-      name: "Revocation Test Farmer",
-      passwordHash,
-      role: "FARMER",
-      phone: "+1234567890",
-      mustResetPassword: false,
-    },
-  })
-  await prisma.$disconnect()
-  return farmer
-}
-
 test.describe("Session revocation", () => {
   test("disabling a farmer immediately revokes an existing session", async ({ browser }) => {
-    const farmer = await createFarmer(TEST_FARMER_EMAIL)
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    const admin = await createTestAdmin(prisma)
+    await prisma.$disconnect()
 
     const farmerCtx = await browser.newContext({ baseURL: "http://localhost:3000" })
     const adminCtx = await browser.newContext({ baseURL: "http://localhost:3000" })
 
     const farmerLogin = await farmerCtx.request.post("/api/auth/login", {
-      data: { email: TEST_FARMER_EMAIL, password: "TempPass123!" },
+      data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
     })
     expect(farmerLogin.ok()).toBeTruthy()
 
@@ -45,7 +28,7 @@ test.describe("Session revocation", () => {
     expect(meBefore.status()).toBe(200)
 
     const adminLogin = await adminCtx.request.post("/api/auth/login", {
-      data: { email: "admin@cabazes.com", password: "Admin123!" },
+      data: { email: admin.email, password: TEST_PASSWORDS.admin },
     })
     expect(adminLogin.ok()).toBeTruthy()
 
@@ -67,13 +50,16 @@ test.describe("Session revocation", () => {
   })
 
   test("deleting a farmer immediately revokes an existing session", async ({ browser }) => {
-    const farmer = await createFarmer(TEST_DELETED_EMAIL)
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    const admin = await createTestAdmin(prisma)
+    await prisma.$disconnect()
 
     const farmerCtx = await browser.newContext({ baseURL: "http://localhost:3000" })
     const adminCtx = await browser.newContext({ baseURL: "http://localhost:3000" })
 
     const farmerLogin = await farmerCtx.request.post("/api/auth/login", {
-      data: { email: TEST_DELETED_EMAIL, password: "TempPass123!" },
+      data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
     })
     expect(farmerLogin.ok()).toBeTruthy()
 
@@ -81,7 +67,7 @@ test.describe("Session revocation", () => {
     expect(meBefore.status()).toBe(200)
 
     const adminLogin = await adminCtx.request.post("/api/auth/login", {
-      data: { email: "admin@cabazes.com", password: "Admin123!" },
+      data: { email: admin.email, password: TEST_PASSWORDS.admin },
     })
     expect(adminLogin.ok()).toBeTruthy()
 
@@ -100,12 +86,14 @@ test.describe("Session revocation", () => {
   })
 
   test("enabled farmer keeps an active session", async ({ browser }) => {
-    const farmer = await createFarmer(TEST_FARMER_EMAIL)
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
 
     const farmerCtx = await browser.newContext({ baseURL: "http://localhost:3000" })
 
     const farmerLogin = await farmerCtx.request.post("/api/auth/login", {
-      data: { email: TEST_FARMER_EMAIL, password: "TempPass123!" },
+      data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
     })
     expect(farmerLogin.ok()).toBeTruthy()
 

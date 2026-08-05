@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.describe("Client-Side Constraint Checks", () => {
   test.beforeEach(async () => {
@@ -11,9 +11,13 @@ test.describe("Client-Side Constraint Checks", () => {
   })
 
   test("should disable basket create button when deadline is after delivery day", async ({ page }) => {
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
+
     await page.goto("/login")
-    await page.fill('input[name="email"]', "farmer@cabazes.com")
-    await page.fill('input[type="password"]', "Farmer123!")
+    await page.fill('input[name="email"]', farmer.email)
+    await page.fill('input[type="password"]', TEST_PASSWORDS.farmer)
     await page.click('button[type="submit"]')
     await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
 
@@ -35,10 +39,7 @@ test.describe("Client-Side Constraint Checks", () => {
 
   test("should disable publish button when basket has no items", async ({ page }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -49,7 +50,7 @@ test.describe("Client-Side Constraint Checks", () => {
         orderDeadline: nextWeek,
         price: 20.0,
         deliveryDay: tomorrow,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: false,
       },
     })
@@ -57,8 +58,8 @@ test.describe("Client-Side Constraint Checks", () => {
     await prisma.$disconnect()
 
     await page.goto("/login")
-    await page.fill('input[name="email"]', "farmer@cabazes.com")
-    await page.fill('input[type="password"]', "Farmer123!")
+    await page.fill('input[name="email"]', farmer.email)
+    await page.fill('input[type="password"]', TEST_PASSWORDS.farmer)
     await page.click('button[type="submit"]')
     await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
 
@@ -70,6 +71,10 @@ test.describe("Client-Side Constraint Checks", () => {
   })
 
   test("should reject password shorter than 6 characters", async ({ request }) => {
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    await prisma.$disconnect()
+
     const res = await request.post("/api/auth/register", {
       data: {
         name: "Short Password User",
@@ -79,6 +84,7 @@ test.describe("Client-Side Constraint Checks", () => {
         city: "Testville",
         postalCode: "00000",
         password: "abc",
+        farmerIds: [farmer.id],
       },
     })
 
@@ -90,14 +96,8 @@ test.describe("Client-Side Constraint Checks", () => {
 
   test("should show deadline passed message on order page", async ({ page }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000)
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
@@ -109,7 +109,7 @@ test.describe("Client-Side Constraint Checks", () => {
         orderDeadline: yesterday,
         price: 25.0,
         deliveryDay: tomorrow,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -117,7 +117,7 @@ test.describe("Client-Side Constraint Checks", () => {
     const tokenValue = "test-expired-order-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,
@@ -132,14 +132,8 @@ test.describe("Client-Side Constraint Checks", () => {
 
   test("should show token already used message on order page", async ({ page }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -150,7 +144,7 @@ test.describe("Client-Side Constraint Checks", () => {
         orderDeadline: nextWeek,
         price: 25.0,
         deliveryDay: tomorrow,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -158,7 +152,7 @@ test.describe("Client-Side Constraint Checks", () => {
     const tokenValue = "test-used-token-" + Date.now()
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket.id,
         token: tokenValue,
         expiresAt: nextWeek,

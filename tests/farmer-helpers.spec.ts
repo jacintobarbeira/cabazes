@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -20,10 +20,7 @@ async function loginAs(page: any, email: string, password: string) {
 test.describe("Farmer Helpers", () => {
   test("farmer creates helper and helper can access farmer data", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
 
     const tomorrow = new Date(Date.now() + 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -34,14 +31,14 @@ test.describe("Farmer Helpers", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: tomorrow,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
 
     await prisma.$disconnect()
 
-    await loginAs(page, "farmer@cabazes.com", "Farmer123!")
+    await loginAs(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const createRes = await page.request.post("/api/farmer/helpers", {
       data: {
@@ -69,13 +66,11 @@ test.describe("Farmer Helpers", () => {
 
   test("helper can access farmer baskets and orders", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
 
     const helperPassword = "TempPass123!"
-    const passwordHash = await require("bcryptjs").hash(helperPassword, 10)
+    const bcrypt = await import("bcryptjs")
+    const passwordHash = await bcrypt.hash(helperPassword, 10)
 
     await prisma.user.create({
       data: {
@@ -84,7 +79,7 @@ test.describe("Farmer Helpers", () => {
         passwordHash,
         role: "FARMER_HELPER",
         phone: "+1234567890",
-        managedById: farmer!.id,
+        managedById: farmer.id,
         mustResetPassword: false,
       },
     })
@@ -98,7 +93,7 @@ test.describe("Farmer Helpers", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: tomorrow,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -122,13 +117,11 @@ test.describe("Farmer Helpers", () => {
 
   test("helper cannot create other helpers", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
 
     const helperPassword = "TempPass123!"
-    const passwordHash = await require("bcryptjs").hash(helperPassword, 10)
+    const bcrypt = await import("bcryptjs")
+    const passwordHash = await bcrypt.hash(helperPassword, 10)
 
     await prisma.user.create({
       data: {
@@ -137,7 +130,7 @@ test.describe("Farmer Helpers", () => {
         passwordHash,
         role: "FARMER_HELPER",
         phone: "+1234567890",
-        managedById: farmer!.id,
+        managedById: farmer.id,
         mustResetPassword: false,
       },
     })
@@ -162,13 +155,11 @@ test.describe("Farmer Helpers", () => {
 
   test("farmer disables helper and helper cannot login", async ({ browser, page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
 
     const helperPassword = "TempPass123!"
-    const passwordHash = await require("bcryptjs").hash(helperPassword, 10)
+    const bcrypt = await import("bcryptjs")
+    const passwordHash = await bcrypt.hash(helperPassword, 10)
 
     const helper = await prisma.user.create({
       data: {
@@ -177,14 +168,14 @@ test.describe("Farmer Helpers", () => {
         passwordHash,
         role: "FARMER_HELPER",
         phone: "+1234567890",
-        managedById: farmer!.id,
+        managedById: farmer.id,
         mustResetPassword: false,
       },
     })
 
     await prisma.$disconnect()
 
-    await loginAs(page, "farmer@cabazes.com", "Farmer123!")
+    await loginAs(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const disableRes = await page.request.patch(`/api/farmer/helpers/${helper.id}`)
     expect(disableRes.ok()).toBeTruthy()
@@ -204,13 +195,11 @@ test.describe("Farmer Helpers", () => {
 
   test("farmer enables disabled helper and helper can login again", async ({ browser, page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
 
     const helperPassword = "TempPass123!"
-    const passwordHash = await require("bcryptjs").hash(helperPassword, 10)
+    const bcrypt = await import("bcryptjs")
+    const passwordHash = await bcrypt.hash(helperPassword, 10)
 
     const helper = await prisma.user.create({
       data: {
@@ -219,7 +208,7 @@ test.describe("Farmer Helpers", () => {
         passwordHash,
         role: "FARMER_HELPER",
         phone: "+1234567890",
-        managedById: farmer!.id,
+        managedById: farmer.id,
         mustResetPassword: false,
         disabled: true,
       },
@@ -227,7 +216,7 @@ test.describe("Farmer Helpers", () => {
 
     await prisma.$disconnect()
 
-    await loginAs(page, "farmer@cabazes.com", "Farmer123!")
+    await loginAs(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const enableRes = await page.request.patch(`/api/farmer/helpers/${helper.id}`)
     expect(enableRes.ok()).toBeTruthy()

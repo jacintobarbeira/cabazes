@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -9,10 +9,11 @@ test.afterEach(async () => {
   await cleanupTestData()
 })
 
-async function loginAsFarmer(page: any) {
+async function loginAsFarmer(page: any, email: string, password: string) {
   await page.goto("/login")
-  await page.fill('input[name="email"]', "farmer@cabazes.com")
-  await page.fill('input[type="password"]', "Farmer123!")
+  await page.waitForLoadState("networkidle")
+  await page.fill('input[name="email"]', email)
+  await page.fill('input[type="password"]', password)
   await page.click('button[type="submit"]')
   await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
 }
@@ -20,14 +21,8 @@ async function loginAsFarmer(page: any) {
 test.describe("Deliveries by Date", () => {
   test("two baskets same date shows combined count", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const deliveryDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -38,7 +33,7 @@ test.describe("Deliveries by Date", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -49,7 +44,7 @@ test.describe("Deliveries by Date", () => {
         orderDeadline: nextWeek,
         price: 25.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -59,7 +54,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket1.id,
         token: token1,
         expiresAt: nextWeek,
@@ -68,7 +63,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket2.id,
         token: token2,
         expiresAt: nextWeek,
@@ -99,7 +94,7 @@ test.describe("Deliveries by Date", () => {
       },
     })
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const datesRes = await page.request.get("/api/deliveries/by-date")
     expect(datesRes.ok()).toBeTruthy()
@@ -113,14 +108,8 @@ test.describe("Deliveries by Date", () => {
 
   test("two baskets different dates show separate cards", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const date1 = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const date2 = new Date(Date.now() + 21 * 24 * 60 * 60 * 1000)
@@ -132,7 +121,7 @@ test.describe("Deliveries by Date", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: date1,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -143,7 +132,7 @@ test.describe("Deliveries by Date", () => {
         orderDeadline: nextWeek,
         price: 25.0,
         deliveryDay: date2,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -153,7 +142,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket1.id,
         token: token1,
         expiresAt: nextWeek,
@@ -162,7 +151,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket2.id,
         token: token2,
         expiresAt: nextWeek,
@@ -193,7 +182,7 @@ test.describe("Deliveries by Date", () => {
       },
     })
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const datesRes = await page.request.get("/api/deliveries/by-date")
     expect(datesRes.ok()).toBeTruthy()
@@ -213,14 +202,8 @@ test.describe("Deliveries by Date", () => {
 
   test("clicking date shows orders from all baskets on that date", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const deliveryDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -231,7 +214,7 @@ test.describe("Deliveries by Date", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -242,7 +225,7 @@ test.describe("Deliveries by Date", () => {
         orderDeadline: nextWeek,
         price: 25.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
@@ -252,7 +235,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket1.id,
         token: token1,
         expiresAt: nextWeek,
@@ -261,7 +244,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.inviteToken.create({
       data: {
-        customerId: customer!.id,
+        customerId: customer.id,
         basketId: basket2.id,
         token: token2,
         expiresAt: nextWeek,
@@ -292,7 +275,7 @@ test.describe("Deliveries by Date", () => {
       },
     })
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const dateKey = deliveryDate.toISOString().split("T")[0]
     const ordersRes = await page.request.get(`/api/deliveries/by-date?date=${dateKey}`)
@@ -308,14 +291,8 @@ test.describe("Deliveries by Date", () => {
 
   test("cancelled orders excluded from deliveries", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer = await createTestFarmer(prisma)
+    const customer = await createTestCustomer(prisma)
 
     const deliveryDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -326,15 +303,15 @@ test.describe("Deliveries by Date", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: deliveryDate,
-        farmerId: farmer!.id,
+        farmerId: farmer.id,
         published: true,
       },
     })
 
-    const order = await prisma.order.create({
+    await prisma.order.create({
       data: {
         basketId: basket.id,
-        customerId: customer!.id,
+        customerId: customer.id,
         deliveryAddress: "123 Test St",
         deliveryCity: "Testville",
         deliveryPostalCode: "00000",
@@ -344,7 +321,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.$disconnect()
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const dateKey = deliveryDate.toISOString().split("T")[0]
     const ordersRes = await page.request.get(`/api/deliveries/by-date?date=${dateKey}`)
@@ -362,30 +339,9 @@ test.describe("Deliveries by Date", () => {
 
   test("farmer cannot see another farmer's delivery dates", async ({ page, request }) => {
     const prisma = createPrisma()
-
-    const farmer1 = await prisma.user.findUnique({
-      where: { email: "farmer@cabazes.com" },
-    })
-
-    let secondFarmer = await prisma.user.findUnique({
-      where: { email: "test-farmer-2@example.com" },
-    })
-
-    if (!secondFarmer) {
-      secondFarmer = await prisma.user.create({
-        data: {
-          email: "test-farmer-2@example.com",
-          name: "Second Farmer",
-          passwordHash: "hashed",
-          role: "FARMER",
-          phone: "+0000000000",
-        },
-      })
-    }
-
-    const customer = await prisma.user.findUnique({
-      where: { email: "alice@example.com" },
-    })
+    const farmer1 = await createTestFarmer(prisma)
+    const secondFarmer = await createTestFarmer(prisma, "second-farmer")
+    const customer = await createTestCustomer(prisma)
 
     const deliveryDate = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
@@ -396,14 +352,14 @@ test.describe("Deliveries by Date", () => {
         orderDeadline: nextWeek,
         price: 30.0,
         deliveryDay: deliveryDate,
-        farmerId: secondFarmer!.id,
+        farmerId: secondFarmer.id,
         published: true,
       },
     })
 
     await prisma.$disconnect()
 
-    await loginAsFarmer(page)
+    await loginAsFarmer(page, farmer1.email, TEST_PASSWORDS.farmer)
 
     const datesRes = await page.request.get("/api/deliveries/by-date")
     expect(datesRes.ok()).toBeTruthy()
