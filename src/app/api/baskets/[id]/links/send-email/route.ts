@@ -58,7 +58,7 @@ export async function POST(
     return NextResponse.json({ error: "No active tokens found" }, { status: 404 })
   }
 
-  const origin = request.headers.get("origin") || `https://${request.headers.get("host")}`
+  const origin = process.env.NEXTAUTH_URL || `https://${request.headers.get("host")}`
   const results: { tokenId: string; email: string; sent: boolean; error?: string }[] = []
 
   for (const token of tokens) {
