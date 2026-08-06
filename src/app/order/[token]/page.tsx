@@ -18,6 +18,7 @@ export default async function OrderPage({
         include: {
           items: { include: { product: true } },
           deliveryPoints: { include: { deliveryPoint: true } },
+          farmer: { select: { name: true } },
         },
       },
       customer: true,
@@ -44,6 +45,10 @@ export default async function OrderPage({
     return <OrderErrorState type="invalid" />
   }
 
+  if (inviteToken.customer.disabled) {
+    return <OrderErrorState type="deactivated" />
+  }
+
   const basket = toBasketDTO(inviteToken.basket)
   const customer = {
     id: inviteToken.customer.id,
@@ -56,5 +61,13 @@ export default async function OrderPage({
     notes: inviteToken.customer.notes || "",
   }
 
-  return <OrderForm basket={basket} customer={customer} token={token} />
+  return (
+    <OrderForm
+      basket={basket}
+      customer={customer}
+      token={token}
+      verified={inviteToken.customer.verified}
+      farmerName={inviteToken.basket.farmer.name || ""}
+    />
+  )
 }

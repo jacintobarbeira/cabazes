@@ -2,7 +2,7 @@
 
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
-export function OrderErrorState({ type }: { type: "expired" | "used" | "deadline" | "invalid" }) {
+export function OrderErrorState({ type }: { type: "expired" | "used" | "deadline" | "invalid" | "deactivated" }) {
   const { t } = useTranslation()
 
   const config = {
@@ -10,6 +10,7 @@ export function OrderErrorState({ type }: { type: "expired" | "used" | "deadline
     used: { title: t("orderPage.alreadyPlaced"), msg: t("orderPage.alreadyPlacedMsg") },
     deadline: { title: t("orderPage.deadlinePassed"), msg: t("orderPage.deadlinePassedMsg") },
     invalid: { title: t("orderPage.invalidLink"), msg: t("orderPage.invalidLinkMsg") },
+    deactivated: { title: t("orderPage.accountDeactivated"), msg: t("orderPage.accountDeactivatedMsg") },
   }
 
   const { title, msg } = config[type]

@@ -47,6 +47,7 @@ export async function proxy(request: NextRequest) {
   const isCustomerRoute = pathname.startsWith("/my-orders") || pathname.startsWith("/profile")
   const isPublicOrderRoute = pathname.startsWith("/order/")
   const isPublicOrderApi = pathname === "/api/orders" && request.method === "POST"
+  const isPublicAccountApi = pathname === "/api/account/delete-request" && request.method === "POST"
   const isPublicFarmersApi = pathname === "/api/farmers" && request.method === "GET"
 
   if (isAuthRoute) {
@@ -57,7 +58,7 @@ export async function proxy(request: NextRequest) {
   const sessionToken = secureCookieToken || request.cookies.get("authjs.session-token")?.value
   const salt = secureCookieToken ? "__Secure-authjs.session-token" : "authjs.session-token"
 
-  if (!sessionToken && !isPublicOrderRoute && !isPublicOrderApi && !isResetPasswordRoute && !isPublicFarmersApi) {
+  if (!sessionToken && !isPublicOrderRoute && !isPublicOrderApi && !isPublicAccountApi && !isResetPasswordRoute && !isPublicFarmersApi) {
     return applyCSP(NextResponse.redirect(new URL("/login", request.url)))
   }
 
@@ -69,7 +70,7 @@ export async function proxy(request: NextRequest) {
         salt,
       })
 
-      if (!payload && !isPublicOrderRoute && !isPublicOrderApi && !isResetPasswordRoute && !isPublicFarmersApi) {
+      if (!payload && !isPublicOrderRoute && !isPublicOrderApi && !isPublicAccountApi && !isResetPasswordRoute && !isPublicFarmersApi) {
         return applyCSP(NextResponse.redirect(new URL("/login", request.url)))
       }
 

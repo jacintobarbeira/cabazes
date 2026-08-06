@@ -20,6 +20,7 @@ model User {
   notes             String?
   disabled          Boolean   @default(false)
   mustResetPassword Boolean   @default(false)
+  verified          Boolean   @default(true)
   senderEmail       String?
   managedById       String?
   managedBy         User?     @relation("FarmerHelpers", fields: [managedById], references: [id])

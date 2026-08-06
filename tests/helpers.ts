@@ -43,6 +43,7 @@ const TEST_BASKET_PREFIXES = [
   "Other Scope Basket",
   "Test Delivery Points ",
   "Test Available ",
+  "Test Customer Creation ",
 ]
 
 const TEST_TOKEN_PREFIX = "test-"
@@ -94,6 +95,10 @@ const TEST_USER_EMAILS = [
   "test-available-customer@example.com",
   "test-available-farmer@example.com",
   "test-available-farmer-b@example.com",
+  "test-cc-farmer@example.com",
+  "test-cc-helper@example.com",
+  "test-cc-customer@example.com",
+  "test-cc-customer2@example.com",
 ]
 
 export const TEST_PASSWORDS = {

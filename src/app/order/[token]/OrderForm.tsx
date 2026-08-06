@@ -26,9 +26,18 @@ interface OrderFormProps {
   }
   token: string
   mode?: "token" | "session"
+  verified?: boolean
+  farmerName?: string
 }
 
-export default function OrderForm({ basket, customer, token, mode = "token" }: OrderFormProps) {
+export default function OrderForm({
+  basket,
+  customer,
+  token,
+  mode = "token",
+  verified = true,
+  farmerName = "",
+}: OrderFormProps) {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const router = useRouter()
@@ -43,10 +52,59 @@ export default function OrderForm({ basket, customer, token, mode = "token" }: O
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
+  const [deleted, setDeleted] = useState(false)
+  const [accountChoice, setAccountChoice] = useState<"unverified" | "verify" | "delete" | "">("")
+  const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
+  const [deleteConfirm, setDeleteConfirm] = useState(false)
+  const [passwordError, setPasswordError] = useState("")
+
+  const isUnverified = mode === "token" && !verified
+
+  const validatePasswordFields = () => {
+    if (password.length < 8) return t("orderForm.passwordTooShort")
+    if (!/[A-Z]/.test(password)) return t("orderForm.passwordUpper")
+    if (!/[0-9]/.test(password)) return t("orderForm.passwordDigit")
+    if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(password)) return t("orderForm.passwordSpecial")
+    if (password !== confirmPassword) return t("orderForm.passwordMismatch")
+    return ""
+  }
+
+  const canPlaceOrder = !isUnverified || accountChoice === "unverified" || accountChoice === "verify"
+  const canSubmitVerify = accountChoice === "verify" && validatePasswordFields() === ""
+
+  const handleDeleteRequest = async () => {
+    setError("")
+    setLoading(true)
+    try {
+      const res = await fetch("/api/account/delete-request", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setError(data.error || t("orderForm.deletionFailed"))
+        return
+      }
+      setDeleted(true)
+    } catch {
+      setError(t("orderForm.deletionFailed"))
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError("")
+    if (isUnverified && accountChoice === "verify") {
+      const pwdError = validatePasswordFields()
+      if (pwdError) {
+        setPasswordError(pwdError)
+        return
+      }
+    }
     setLoading(true)
 
     try {
@@ -62,6 +120,7 @@ export default function OrderForm({ basket, customer, token, mode = "token" }: O
           deliveryNotes,
           deliveryPointId: deliveryMode === "point" ? deliveryPointId : undefined,
           swapChoices: swaps.filter((s) => s.baseItemId && s.swapItemId),
+          verifyPassword: isUnverified && accountChoice === "verify" ? password : undefined,
         }),
       })
 
@@ -80,6 +139,20 @@ export default function OrderForm({ basket, customer, token, mode = "token" }: O
     }
   }
 
+  if (deleted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
+        <Card className="w-full max-w-md">
+          <CardContent className="pt-8 text-center">
+            <div className="text-4xl mb-4">🗑️</div>
+            <h2 className="text-xl font-semibold text-gray-900">{t("orderForm.accountDeleted")}</h2>
+            <p className="mt-2 text-gray-900">{t("orderForm.accountDeletedMsg")}</p>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
   if (success) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 px-4">
@@ -90,6 +163,9 @@ export default function OrderForm({ basket, customer, token, mode = "token" }: O
             <p className="mt-2 text-gray-900">
               {t("orderForm.deliveredOn", { name: basket.name, date: formatDateOnly(basket.deliveryDay, timezone) })}
             </p>
+            {isUnverified && accountChoice === "verify" && (
+              <p className="mt-3 text-sm text-gray-900">{t("orderForm.verifiedNow")}</p>
+            )}
             {mode === "session" && (
               <div className="mt-4">
                 <Button variant="outline" onClick={() => router.push("/baskets")}>
@@ -244,6 +320,122 @@ export default function OrderForm({ basket, customer, token, mode = "token" }: O
           </CardContent>
         </Card>
 
+        {isUnverified && (
+          <Card>
+            <CardHeader>
+              <CardTitle>{t("orderForm.accountDecision")}</CardTitle>
+              <p className="text-sm text-gray-900">
+                {t("orderForm.unverifiedDisclaimer", { farmer: farmerName })}
+              </p>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-3">
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-300 bg-white cursor-pointer">
+                  <input
+                    type="radio"
+                    name="accountChoice"
+                    checked={accountChoice === "unverified"}
+                    onChange={() => setAccountChoice("unverified")}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-gray-900">
+                    {t("orderForm.continueUnverified")}
+                    <span className="block text-xs text-gray-500">{t("orderForm.continueUnverifiedHint")}</span>
+                  </span>
+                </label>
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-300 bg-white cursor-pointer">
+                  <input
+                    type="radio"
+                    name="accountChoice"
+                    checked={accountChoice === "verify"}
+                    onChange={() => setAccountChoice("verify")}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-gray-900">
+                    {t("orderForm.verifyAndOrder")}
+                    <span className="block text-xs text-gray-500">{t("orderForm.verifyAndOrderHint")}</span>
+                  </span>
+                </label>
+
+                {accountChoice === "verify" && (
+                  <div className="p-3 bg-gray-50 rounded-lg space-y-3">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">
+                        {t("orderForm.passwordLabel")}
+                      </label>
+                      <Input
+                        type="password"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value)
+                          setPasswordError("")
+                        }}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">
+                        {t("orderForm.confirmPasswordLabel")}
+                      </label>
+                      <Input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value)
+                          setPasswordError("")
+                        }}
+                        required
+                      />
+                    </div>
+                    <p className="text-xs text-gray-500">{t("orderForm.passwordRequirements")}</p>
+                    {passwordError && (
+                      <div className="bg-red-50 text-red-700 text-sm p-2 rounded-md">
+                        {passwordError}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                <label className="flex items-start gap-2 p-2 rounded border border-gray-300 bg-white cursor-pointer">
+                  <input
+                    type="radio"
+                    name="accountChoice"
+                    checked={accountChoice === "delete"}
+                    onChange={() => setAccountChoice("delete")}
+                    className="mt-1"
+                  />
+                  <span className="text-sm text-gray-900">
+                    {t("orderForm.requestDeletion")}
+                    <span className="block text-xs text-gray-500">{t("orderForm.requestDeletionHint")}</span>
+                  </span>
+                </label>
+
+                {accountChoice === "delete" && (
+                  <div className="p-3 bg-gray-50 rounded-lg space-y-3">
+                    <p className="text-sm text-gray-900">{t("orderForm.deletionWarning")}</p>
+                    <label className="flex items-center gap-2 text-sm text-gray-900 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={deleteConfirm}
+                        onChange={(e) => setDeleteConfirm(e.target.checked)}
+                        className="h-4 w-4 rounded border-gray-300"
+                      />
+                      {t("orderForm.deletionConfirm")}
+                    </label>
+                    <Button
+                      variant="danger"
+                      disabled={!deleteConfirm || loading}
+                      onClick={handleDeleteRequest}
+                    >
+                      {loading ? t("common.loading") : t("orderForm.confirmDeletion")}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         <Card>
           <CardHeader>
             <CardTitle>{t("orderForm.deliveryDetails")}</CardTitle>
@@ -356,9 +548,17 @@ export default function OrderForm({ basket, customer, token, mode = "token" }: O
                   rows={2}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
-                {loading ? t("orderForm.placingOrder") : t("orderForm.placeOrder")}
-              </Button>
+              {accountChoice === "delete" ? (
+                <p className="text-sm text-gray-500">{t("orderForm.deletionPending")}</p>
+              ) : (
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={loading || !canPlaceOrder || (accountChoice === "verify" && !canSubmitVerify)}
+                >
+                  {loading ? t("orderForm.placingOrder") : t("orderForm.placeOrder")}
+                </Button>
+              )}
             </form>
           </CardContent>
         </Card>

@@ -12,6 +12,7 @@ export interface UserDTO {
   notes: string | null
   disabled: boolean
   mustResetPassword: boolean
+  verified: boolean
   managedById: string | null
   createdAt: string
   updatedAt: string

@@ -4,6 +4,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/auth"
 import { getEffectiveFarmerId } from "@/lib/auth-helpers"
 import { csrfCheck } from "@/lib/csrf"
+import { validatePassword } from "@/lib/password-policy"
+import bcrypt from "bcryptjs"
 
 export async function GET(request: Request) {
   const session = await auth()
@@ -72,6 +74,7 @@ export async function POST(request: Request) {
     deliveryNotes,
     deliveryPointId,
     swapChoices,
+    verifyPassword,
   } = body
 
   if (!basketId) {
@@ -94,6 +97,7 @@ export async function POST(request: Request) {
     name: string | null
     email: string | null
     phone: string | null
+    verified: boolean
   }
   let inviteTokenId: string | null = null
   let usedToken: { id: string } | null = null
@@ -134,6 +138,10 @@ export async function POST(request: Request) {
 
     if (!inviteToken.customer) {
       return NextResponse.json({ error: "Token has no associated customer" }, { status: 400 })
+    }
+
+    if (inviteToken.customer.disabled) {
+      return NextResponse.json({ error: "Account is deactivated" }, { status: 400 })
     }
 
     basket = inviteToken.basket
@@ -188,7 +196,19 @@ export async function POST(request: Request) {
     }
 
     basket = found
-    customer = me
+    customer = { ...me, verified: true }
+  }
+
+  let verifyHash: string | null = null
+  if (verifyPassword) {
+    if (customer.verified) {
+      return NextResponse.json({ error: "Account is already verified" }, { status: 400 })
+    }
+    const passwordError = validatePassword(verifyPassword)
+    if (passwordError) {
+      return NextResponse.json({ error: passwordError }, { status: 400 })
+    }
+    verifyHash = await bcrypt.hash(verifyPassword, 10)
   }
 
   const basketItems = basket.items
@@ -335,6 +355,13 @@ export async function POST(request: Request) {
       await tx.inviteToken.update({
         where: { id: usedToken.id },
         data: { usedAt: new Date() },
+      })
+    }
+
+    if (verifyHash) {
+      await tx.user.update({
+        where: { id: customer.id },
+        data: { passwordHash: verifyHash, verified: true },
       })
     }
 

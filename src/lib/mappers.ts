@@ -26,6 +26,7 @@ export function toUserDTO(user: {
   notes: string | null
   disabled: boolean
   mustResetPassword: boolean
+  verified: boolean
   managedById: string | null
   createdAt: Date
   updatedAt: Date
@@ -44,12 +45,12 @@ export function toUserDTO(user: {
     notes: user.notes,
     disabled: user.disabled,
     mustResetPassword: user.mustResetPassword,
+    verified: user.verified,
     managedById: user.managedById,
     createdAt: user.createdAt.toISOString(),
     updatedAt: user.updatedAt.toISOString(),
   }
 }
-
 export function toCustomerDTO(
   customer: {
     id: string
@@ -65,6 +66,7 @@ export function toCustomerDTO(
     notes: string | null
     disabled: boolean
     mustResetPassword: boolean
+    verified: boolean
     managedById: string | null
     createdAt: Date
     updatedAt: Date
@@ -86,6 +88,7 @@ export function toCustomerDTO(
     notes: includePII ? customer.notes : null,
     disabled: customer.disabled,
     mustResetPassword: customer.mustResetPassword,
+    verified: customer.verified,
     managedById: customer.managedById,
     createdAt: customer.createdAt.toISOString(),
     updatedAt: customer.updatedAt.toISOString(),
