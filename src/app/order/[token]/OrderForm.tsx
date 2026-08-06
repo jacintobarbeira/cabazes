@@ -28,6 +28,8 @@ interface OrderFormProps {
 export default function OrderForm({ basket, customer, token }: OrderFormProps) {
   const { t } = useTranslation()
   const [timezone, setTimezone] = useState("UTC")
+  const [deliveryMode, setDeliveryMode] = useState<"customer" | "point">("customer")
+  const [deliveryPointId, setDeliveryPointId] = useState("")
   const [deliveryAddress, setDeliveryAddress] = useState(customer.address)
   const [deliveryCity, setDeliveryCity] = useState(customer.city)
   const [deliveryPostalCode, setDeliveryPostalCode] = useState(customer.postalCode)
@@ -62,6 +64,7 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
           deliveryCity,
           deliveryPostalCode,
           deliveryNotes,
+          deliveryPointId: deliveryMode === "point" ? deliveryPointId : undefined,
           swapChoices: swaps.filter((s) => s.baseItemId && s.swapItemId),
         }),
       })
@@ -242,36 +245,94 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
                   {error}
                 </div>
               )}
-              <div>
-                <label className="block text-sm font-medium text-gray-900 mb-1">
-                  {t("orderForm.deliveryAddress")}
+
+              <div className="space-y-3">
+                <label className="block text-sm font-medium text-gray-900">
+                  {t("orderForm.deliveryMethod")}
                 </label>
-                <Input
-                  value={deliveryAddress}
-                  onChange={(e) => setDeliveryAddress(e.target.value)}
-                  required
-                />
+                <label className="flex items-center gap-2 p-2 rounded border border-gray-300 bg-white cursor-pointer">
+                  <input
+                    type="radio"
+                    name="deliveryMethod"
+                    checked={deliveryMode === "customer"}
+                    onChange={() => setDeliveryMode("customer")}
+                  />
+                  <span className="text-sm text-gray-900">
+                    {t("orderForm.deliverToMyAddress")}
+                    <span className="block text-xs text-gray-500">
+                      {customer.address || t("orderForm.noAddressOnFile")}
+                    </span>
+                  </span>
+                </label>
+                {basket.deliveryPoints.length > 0 && (
+                  <label className="flex items-center gap-2 p-2 rounded border border-gray-300 bg-white cursor-pointer">
+                    <input
+                      type="radio"
+                      name="deliveryMethod"
+                      checked={deliveryMode === "point"}
+                      onChange={() => setDeliveryMode("point")}
+                    />
+                    <span className="text-sm text-gray-900">
+                      {t("orderForm.deliverToDeliveryPoint")}
+                    </span>
+                  </label>
+                )}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+              {deliveryMode === "point" && basket.deliveryPoints.length > 0 ? (
                 <div>
                   <label className="block text-sm font-medium text-gray-900 mb-1">
-                    {t("common.city")}
+                    {t("orderForm.selectDeliveryPoint")}
                   </label>
-                  <Input
-                    value={deliveryCity}
-                    onChange={(e) => setDeliveryCity(e.target.value)}
-                  />
+                  <select
+                    value={deliveryPointId}
+                    onChange={(e) => setDeliveryPointId(e.target.value)}
+                    required
+                    className="w-full h-10 rounded-md border border-gray-300 bg-white px-3 py-2 text-sm text-gray-900"
+                  >
+                    <option value="">{t("orderForm.selectDeliveryPointPlaceholder")}</option>
+                    {basket.deliveryPoints.map((point) => (
+                      <option key={point.id} value={point.id}>
+                        {point.name} — {point.address}
+                        {point.city ? `, ${point.city}` : ""}
+                      </option>
+                    ))}
+                  </select>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium text-gray-900 mb-1">
-                    {t("common.postalCode")}
-                  </label>
-                  <Input
-                    value={deliveryPostalCode}
-                    onChange={(e) => setDeliveryPostalCode(e.target.value)}
-                  />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-900 mb-1">
+                      {t("orderForm.deliveryAddress")}
+                    </label>
+                    <Input
+                      value={deliveryAddress}
+                      onChange={(e) => setDeliveryAddress(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">
+                        {t("common.city")}
+                      </label>
+                      <Input
+                        value={deliveryCity}
+                        onChange={(e) => setDeliveryCity(e.target.value)}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-900 mb-1">
+                        {t("common.postalCode")}
+                      </label>
+                      <Input
+                        value={deliveryPostalCode}
+                        onChange={(e) => setDeliveryPostalCode(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
               <div>
                 <label className="block text-sm font-medium text-gray-900 mb-1">
                   {t("orderForm.deliveryNotes")}

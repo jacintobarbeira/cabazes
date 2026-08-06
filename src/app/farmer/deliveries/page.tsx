@@ -46,11 +46,13 @@ export default function DeliveriesPage() {
     setAddresses(data)
   }
 
-  const groupedByCity = addresses.reduce(
+  const groupedByPoint = addresses.reduce(
     (acc, addr) => {
-      const city = addr.city || "No city"
-      if (!acc[city]) acc[city] = []
-      acc[city].push(addr)
+      const key = addr.deliveryPointName
+        ? `point:${addr.deliveryPointName}`
+        : `customer:${addr.address}`
+      if (!acc[key]) acc[key] = []
+      acc[key].push(addr)
       return acc
     },
     {} as Record<string, DeliveryAddressDTO[]>
@@ -152,14 +154,23 @@ export default function DeliveriesPage() {
             {t("deliveries.deliveriesFor")} {formatDateOnly(selectedDate, timezone)}
           </p>
 
-          {Object.entries(groupedByCity)
+          {Object.entries(groupedByPoint)
             .sort(([a], [b]) => a.localeCompare(b))
-            .map(([city, addrs]) => (
-              <Card key={city} className="mb-4">
-                <CardHeader>
-                  <CardTitle className="text-base">{city}</CardTitle>
-                  <p className="text-sm text-gray-900">{addrs.length} {t("deliveries.deliveriesCount")}</p>
-                </CardHeader>
+            .map(([key, addrs]) => {
+              const first = addrs[0]
+              const isPoint = first.deliveryPointName
+              return (
+                <Card key={key} className="mb-4">
+                  <CardHeader>
+                    <CardTitle className="text-base">
+                      {isPoint ? first.deliveryPointName : t("deliveries.customerDelivery")}
+                    </CardTitle>
+                    <p className="text-sm text-gray-900">
+                      {first.address}
+                      {first.city ? `, ${first.city}` : ""}
+                    </p>
+                    <p className="text-sm text-gray-900">{addrs.length} {t("deliveries.deliveriesCount")}</p>
+                  </CardHeader>
                 <CardContent>
                   <table className="w-full text-sm">
                     <thead>
@@ -265,8 +276,9 @@ export default function DeliveriesPage() {
                     )
                   ))}
                 </CardContent>
-              </Card>
-            ))}
+                </Card>
+              )
+            })}
 
           {addresses.length === 0 && (
             <Card>

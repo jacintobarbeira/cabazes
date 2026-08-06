@@ -19,7 +19,10 @@ export async function GET(request: Request) {
 
   const baskets = await prisma.basket.findMany({
     where: { farmerId },
-    include: { _count: { select: { orders: true } } },
+    include: {
+      _count: { select: { orders: true } },
+      deliveryPoints: { include: { deliveryPoint: true } },
+    },
     orderBy: { orderDeadline: "desc" },
   })
 
@@ -42,11 +45,30 @@ export async function POST(request: Request) {
   }
 
   const body = await request.json()
-  const { name, description, orderDeadline, price, deliveryDay, allowedSwaps } = body
+  const { name, description, orderDeadline, price, deliveryDay, allowedSwaps, deliveryPointIds } = body
 
   if (!name || !orderDeadline || !price || !deliveryDay) {
     return NextResponse.json(
       { error: "Name, orderDeadline, price, and deliveryDay are required" },
+      { status: 400 }
+    )
+  }
+
+  if (!Array.isArray(deliveryPointIds) || deliveryPointIds.length === 0) {
+    return NextResponse.json(
+      { error: "At least one delivery point is required" },
+      { status: 400 }
+    )
+  }
+
+  const deliveryPoints = await prisma.deliveryPoint.findMany({
+    where: { id: { in: deliveryPointIds }, farmerId },
+    select: { id: true },
+  })
+
+  if (deliveryPoints.length !== deliveryPointIds.length) {
+    return NextResponse.json(
+      { error: "One or more delivery points are not valid for this farmer" },
       { status: 400 }
     )
   }
@@ -88,9 +110,13 @@ export async function POST(request: Request) {
       deliveryDay: deliveryDayDate,
       allowedSwaps: parsedSwaps,
       farmerId,
+      deliveryPoints: {
+        create: deliveryPointIds.map((deliveryPointId: string) => ({ deliveryPointId })),
+      },
     },
     include: {
       items: { include: { product: true } },
+      deliveryPoints: { include: { deliveryPoint: true } },
     },
   }).catch(() => null)
 

@@ -30,6 +30,9 @@ async function main() {
   await prisma.basket.deleteMany({
     where: { name: { startsWith: TEST_BASKET_PREFIX } },
   })
+  await prisma.deliveryPoint.deleteMany({
+    where: { name: { startsWith: TEST_BASKET_PREFIX } },
+  })
   await prisma.product.deleteMany({
     where: { name: { startsWith: TEST_PRODUCT_PREFIX } },
   })

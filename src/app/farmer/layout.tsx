@@ -8,6 +8,7 @@ const navItems = [
   { href: "/farmer/baskets", icon: "🧺", labelKey: "nav.baskets" },
   { href: "/farmer/orders", icon: "📋", labelKey: "nav.orders" },
   { href: "/farmer/deliveries", icon: "🚚", labelKey: "nav.deliveries" },
+  { href: "/farmer/delivery-points", icon: "📍", labelKey: "nav.deliveryPoints" },
   { href: "/farmer/customers", icon: "👥", labelKey: "nav.customers" },
   { href: "/farmer/settings", icon: "⚙️", labelKey: "nav.settings" },
 ]

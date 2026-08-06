@@ -48,6 +48,7 @@ export async function POST(
     where: { id, farmerId },
     include: {
       items: true,
+      deliveryPoints: { select: { deliveryPointId: true } },
     },
   })
 
@@ -66,6 +67,9 @@ export async function POST(
         allowedSwaps: source.allowedSwaps,
         farmerId,
         published: false,
+        deliveryPoints: {
+          create: source.deliveryPoints.map((rel) => ({ deliveryPointId: rel.deliveryPointId })),
+        },
       },
     })
 
@@ -93,6 +97,7 @@ export async function POST(
     where: { id: created.id },
     include: {
       items: { include: { product: true } },
+      deliveryPoints: { include: { deliveryPoint: true } },
     },
   })
 

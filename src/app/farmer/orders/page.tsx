@@ -105,7 +105,16 @@ export default function OrdersPage() {
                         {t("statuses." + order.status)}
                       </Badge>
                     </td>
-                    <td className="py-2 text-gray-900">{order.deliveryAddress}</td>
+                    <td className="py-2 text-gray-900">
+                      {order.deliveryPointName ? (
+                        <div>
+                          <span className="font-medium">{order.deliveryPointName}</span>
+                          <div className="text-xs text-gray-900">{order.deliveryAddress}</div>
+                        </div>
+                      ) : (
+                        order.deliveryAddress
+                      )}
+                    </td>
                     <td className="py-2 text-gray-900">
                       {formatDateOnly(order.createdAt, timezone)}
                     </td>
@@ -137,9 +146,17 @@ export default function OrdersPage() {
                       <span className="text-gray-900">{order.customerPhone || "-"}</span>
                     </div>
                     <div>
-                      <span className="text-gray-900">{t("orders.address")}</span>{" "}
-                      <span className="text-gray-900">{order.deliveryAddress}</span>
+                      <span className="text-gray-900">{order.deliveryPointName ? t("orders.deliveryPoint") : t("orders.address")}</span>{" "}
+                      <span className="text-gray-900">
+                        {order.deliveryPointName || order.deliveryAddress}
+                      </span>
                     </div>
+                    {order.deliveryPointName && (
+                      <div>
+                        <span className="text-gray-900">{t("orders.address")}</span>{" "}
+                        <span className="text-gray-900">{order.deliveryAddress}</span>
+                      </div>
+                    )}
                     {order.deliveryCity && (
                       <div>
                         <span className="text-gray-900">{t("orders.city")}</span>{" "}

@@ -9,6 +9,7 @@ import type {
   BasketItemDTO,
   OrderSwapChoiceDTO,
   FarmerHelperDTO,
+  DeliveryPointDTO,
 } from "@/types/api"
 
 export function toUserDTO(user: {
@@ -143,6 +144,40 @@ function toBasketItemDTO(item: {
   }
 }
 
+export function toDeliveryPointDTO(point: {
+  id: string
+  name: string
+  address: string
+  city: string | null
+  postalCode: string | null
+  createdAt: Date
+  updatedAt: Date
+}): DeliveryPointDTO {
+  return {
+    id: point.id,
+    name: point.name,
+    address: point.address,
+    city: point.city,
+    postalCode: point.postalCode,
+    createdAt: point.createdAt.toISOString(),
+    updatedAt: point.updatedAt.toISOString(),
+  }
+}
+
+function toBasketDeliveryPointDTO(rel: {
+  deliveryPoint: {
+    id: string
+    name: string
+    address: string
+    city: string | null
+    postalCode: string | null
+    createdAt: Date
+    updatedAt: Date
+  }
+}): DeliveryPointDTO {
+  return toDeliveryPointDTO(rel.deliveryPoint)
+}
+
 export function toBasketDTO(basket: {
   id: string
   name: string
@@ -160,6 +195,17 @@ export function toBasketDTO(basket: {
     product: { name: string }
     isBase: boolean
   }[]
+  deliveryPoints?: {
+    deliveryPoint: {
+      id: string
+      name: string
+      address: string
+      city: string | null
+      postalCode: string | null
+      createdAt: Date
+      updatedAt: Date
+    }
+  }[]
   _count?: { orders: number }
 }): BasketDTO {
   return {
@@ -172,6 +218,7 @@ export function toBasketDTO(basket: {
     allowedSwaps: basket.allowedSwaps,
     published: basket.published,
     items: basket.items.map(toBasketItemDTO),
+    deliveryPoints: (basket.deliveryPoints ?? []).map(toBasketDeliveryPointDTO),
     orderCount: basket._count?.orders,
     createdAt: basket.createdAt.toISOString(),
     updatedAt: basket.updatedAt.toISOString(),
@@ -230,6 +277,8 @@ export function toOrderDTO(order: {
   deliveryCity: string | null
   deliveryPostalCode: string | null
   deliveryNotes: string | null
+  deliveryPointId: string | null
+  deliveryPoint?: { id: string; name: string } | null
   swapChoices: {
     id: string
     baseItem: { id: string; product: { name: string } }
@@ -250,6 +299,8 @@ export function toOrderDTO(order: {
     deliveryCity: order.deliveryCity,
     deliveryPostalCode: order.deliveryPostalCode,
     deliveryNotes: order.deliveryNotes,
+    deliveryPointId: order.deliveryPointId,
+    deliveryPointName: order.deliveryPoint?.name || null,
     baseItems: (order.basket.items ?? [])
       .filter((i) => i.isBase)
       .map((i) => ({
@@ -294,6 +345,8 @@ export function toDeliveryAddressDTO(order: {
   customerName: string | null
   customerPhone: string | null
   deliveryNotes: string | null
+  deliveryPointId: string | null
+  deliveryPoint?: { id: string; name: string } | null
   basket: {
     id: string
     name: string
@@ -314,6 +367,8 @@ export function toDeliveryAddressDTO(order: {
     customerName: order.customerName,
     customerPhone: order.customerPhone,
     deliveryNotes: order.deliveryNotes,
+    deliveryPointId: order.deliveryPointId,
+    deliveryPointName: order.deliveryPoint?.name || null,
     basketName: order.basket.name,
     basketId: order.basket.id,
     orderId: order.id,

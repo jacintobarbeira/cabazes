@@ -41,6 +41,7 @@ const TEST_BASKET_PREFIXES = [
   "Test Dedup ",
   "Scope Basket",
   "Other Scope Basket",
+  "Test Delivery Points ",
 ]
 
 const TEST_TOKEN_PREFIX = "test-"
@@ -124,6 +125,23 @@ export async function createTestAdmin(prisma: any, opts?: { email?: string } | s
   })
 }
 
+export async function createTestDeliveryPoint(
+  prisma: any,
+  farmerId: string,
+  opts?: { name?: string; address?: string; city?: string; postalCode?: string } | string
+) {
+  const baseName = typeof opts === "string" ? opts : (opts?.name || "Test Delivery Point")
+  return prisma.deliveryPoint.create({
+    data: {
+      name: baseName,
+      address: opts && typeof opts === "object" ? (opts.address || `${baseName} 1`) : `${baseName} 1`,
+      city: opts && typeof opts === "object" ? (opts.city || null) : null,
+      postalCode: opts && typeof opts === "object" ? (opts.postalCode || null) : null,
+      farmerId,
+    },
+  })
+}
+
 export function createPrisma() {
   const adapter = new PrismaLibSql({
     url: process.env.DATABASE_URL || "file:./prisma/test.db",
@@ -166,6 +184,12 @@ async function cleanupTestDataOnce() {
     }
 
     await prisma.product.deleteMany({
+      where: {
+        name: { startsWith: "Test " },
+      },
+    })
+
+    await prisma.deliveryPoint.deleteMany({
       where: {
         name: { startsWith: "Test " },
       },

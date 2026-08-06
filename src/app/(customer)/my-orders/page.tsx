@@ -102,9 +102,17 @@ export default function MyOrdersPage() {
                 </span>
               </div>
               <div>
-                <span className="text-gray-900">{t("myOrders.address")}</span>{" "}
-                <span className="text-gray-900">{order.deliveryAddress}</span>
+                <span className="text-gray-900">{order.deliveryPointName ? t("myOrders.deliveryPoint") : t("myOrders.address")}</span>{" "}
+                <span className="text-gray-900">
+                  {order.deliveryPointName || order.deliveryAddress}
+                </span>
               </div>
+              {order.deliveryPointName && (
+                <div>
+                  <span className="text-gray-900">{t("myOrders.address")}</span>{" "}
+                  <span className="text-gray-900">{order.deliveryAddress}</span>
+                </div>
+              )}
             </div>
             {order.baseItems.length > 0 && (
               <div className="mt-3">

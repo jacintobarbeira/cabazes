@@ -64,6 +64,7 @@ export async function GET(request: Request) {
           items: { include: { product: true } },
         },
       },
+      deliveryPoint: { select: { id: true, name: true } },
       swapChoices: {
         include: {
           baseItem: { include: { product: true } },

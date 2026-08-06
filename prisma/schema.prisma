@@ -34,6 +34,7 @@ model User {
   products          Product[]        @relation("FarmerProducts")
   customerFarmers   CustomerFarmer[] @relation("CustomerFarmers")
   farmerCustomers   CustomerFarmer[] @relation("FarmerCustomers")
+  deliveryPoints    DeliveryPoint[]  @relation("FarmerDeliveryPoints")
 }
 
 model Product {
@@ -68,9 +69,40 @@ model Basket {
   items         BasketItem[]
   orders        Order[]
   inviteTokens  InviteToken[]
+  deliveryPoints BasketDeliveryPoint[]
 
   @@unique([name, deliveryDay, farmerId])
   @@index([farmerId])
+}
+
+model DeliveryPoint {
+  id         String    @id @default(cuid())
+  farmerId   String
+  farmer     User      @relation("FarmerDeliveryPoints", fields: [farmerId], references: [id], onDelete: Cascade)
+  name       String
+  address    String
+  city       String?
+  postalCode String?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  baskets    BasketDeliveryPoint[]
+  orders     Order[]
+
+  @@unique([name, farmerId])
+  @@index([farmerId])
+}
+
+model BasketDeliveryPoint {
+  id              String        @id @default(cuid())
+  basketId        String
+  basket          Basket        @relation(fields: [basketId], references: [id], onDelete: Cascade)
+  deliveryPointId String
+  deliveryPoint   DeliveryPoint @relation(fields: [deliveryPointId], references: [id], onDelete: Restrict)
+  createdAt       DateTime      @default(now())
+
+  @@unique([basketId, deliveryPointId])
+  @@index([basketId])
+  @@index([deliveryPointId])
 }
 
 model BasketItem {
@@ -106,6 +138,8 @@ model Order {
   swapChoices        OrderSwapChoice[]
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
+  deliveryPointId    String?
+  deliveryPoint      DeliveryPoint? @relation(fields: [deliveryPointId], references: [id], onDelete: SetNull)
 
   @@unique([customerId, basketId])
   @@index([basketId])

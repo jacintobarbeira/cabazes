@@ -43,6 +43,16 @@ export interface BasketItemDTO {
   isBase: boolean
 }
 
+export interface DeliveryPointDTO {
+  id: string
+  name: string
+  address: string
+  city: string | null
+  postalCode: string | null
+  createdAt: string
+  updatedAt: string
+}
+
 export interface BasketDTO {
   id: string
   name: string
@@ -53,6 +63,7 @@ export interface BasketDTO {
   allowedSwaps: number
   published: boolean
   items: BasketItemDTO[]
+  deliveryPoints: DeliveryPointDTO[]
   orderCount?: number
   createdAt: string
   updatedAt: string
@@ -91,6 +102,8 @@ export interface OrderDTO {
   deliveryCity: string | null
   deliveryPostalCode: string | null
   deliveryNotes: string | null
+  deliveryPointId: string | null
+  deliveryPointName: string | null
   baseItems: BasketItemDTO[]
   swapChoices: OrderSwapChoiceDTO[]
   createdAt: string
@@ -116,6 +129,8 @@ export interface DeliveryAddressDTO {
   customerName: string | null
   customerPhone: string | null
   deliveryNotes: string | null
+  deliveryPointId: string | null
+  deliveryPointName: string | null
   basketName: string
   basketId: string
   orderId: string

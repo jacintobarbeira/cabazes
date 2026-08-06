@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import Link from "next/link"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
@@ -13,7 +14,7 @@ import {
   fromLocalDateToUTC,
 } from "@/lib/dates"
 import { useTranslation } from "@/lib/i18n/useTranslation"
-import type { ProductDTO, BasketDTO } from "@/types/api"
+import type { ProductDTO, BasketDTO, DeliveryPointDTO } from "@/types/api"
 
 type WizardItem = { productId: string }
 
@@ -24,6 +25,8 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
   const timezone = session?.user?.timezone || "UTC"
   const router = useRouter()
   const [products, setProducts] = useState<ProductDTO[]>([])
+  const [deliveryPoints, setDeliveryPoints] = useState<DeliveryPointDTO[]>([])
+  const [selectedDeliveryPointIds, setSelectedDeliveryPointIds] = useState<string[]>([])
   const [name, setName] = useState("")
   const [description, setDescription] = useState("")
   const [orderDeadline, setOrderDeadline] = useState("")
@@ -42,6 +45,13 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
     fetch("/api/products")
       .then((res) => res.json())
       .then((data) => setProducts(data.filter((p: ProductDTO) => p.active)))
+  }, [])
+
+  useEffect(() => {
+    fetch("/api/delivery-points")
+      .then((res) => res.json())
+      .then((data) => setDeliveryPoints(data))
+      .catch(() => {})
   }, [])
 
   useEffect(() => {
@@ -68,6 +78,7 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
         setOrderDeadline(toLocalInput(data.orderDeadline, timezone))
         setDeliveryDay(toLocalDateInput(data.deliveryDay, timezone))
         setAllowedSwaps(String(data.allowedSwaps))
+        setSelectedDeliveryPointIds(data.deliveryPoints.map((p) => p.id))
         setSelectedItems(
           data.items
             .filter((i) => i.isBase)
@@ -92,6 +103,13 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
 
   const removeItem = (productId: string) => {
     setSelectedItems(selectedItems.filter((i) => i.productId !== productId))
+  }
+
+  const toggleDeliveryPoint = (pointId: string) => {
+    setError("")
+    setSelectedDeliveryPointIds((prev) =>
+      prev.includes(pointId) ? prev.filter((id) => id !== pointId) : [...prev, pointId]
+    )
   }
 
   const addSwapItem = (productId: string) => {
@@ -140,6 +158,7 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
         price,
         deliveryDay: deliveryDayUTC.toISOString(),
         allowedSwaps: allowedSwaps,
+        deliveryPointIds: selectedDeliveryPointIds,
       }
 
       let basketIdResolved = basketId
@@ -276,6 +295,59 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
                   })()}
                 </div>
               )}
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-sm font-medium text-gray-900">
+                    {t("basketWizard.deliveryPoints")}
+                    {!isEditing && <span className="text-red-600"> *</span>}
+                  </label>
+                  <Link href="/farmer/delivery-points" className="text-sm text-green-600 hover:text-green-700">
+                    {t("basketWizard.manageDeliveryPoints")}
+                  </Link>
+                </div>
+                {deliveryPoints.length === 0 ? (
+                  <p className="text-sm text-red-600">
+                    {t("basketWizard.noDeliveryPoints")}{" "}
+                    <Link href="/farmer/delivery-points" className="underline">
+                      {t("basketWizard.createDeliveryPoints")}
+                    </Link>
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {deliveryPoints.map((point) => {
+                      const checked = selectedDeliveryPointIds.includes(point.id)
+                      return (
+                        <label
+                          key={point.id}
+                          className={`flex items-start gap-2 p-2 rounded border cursor-pointer ${
+                            checked ? "border-green-600 bg-green-50" : "border-gray-300 bg-white"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => toggleDeliveryPoint(point.id)}
+                            className="mt-1"
+                          />
+                          <span className="text-sm text-gray-900">
+                            <span className="font-medium">{point.name}</span>
+                            <span className="block text-xs">
+                              {point.address}
+                              {point.city ? `, ${point.city}` : ""}
+                              {point.postalCode ? ` ${point.postalCode}` : ""}
+                            </span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+                {!isEditing && selectedDeliveryPointIds.length === 0 && (
+                  <p className="text-sm text-red-600 mt-1">{t("basketWizard.requireDeliveryPoints")}</p>
+                )}
+              </div>
+
               <Button
                 onClick={() => {
                   setError("")
@@ -285,7 +357,7 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
                   const deadlineUTC = fromLocalInputToUTC(orderDeadline, timezone)
                   const deliveryUTC = fromLocalDateToUTC(deliveryDay, timezone)
                   return deadlineUTC >= deliveryUTC
-                })()}
+                })() || (!isEditing && selectedDeliveryPointIds.length === 0)}
               >
                 {t("basketWizard.nextItems")}
               </Button>

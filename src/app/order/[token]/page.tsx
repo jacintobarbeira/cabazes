@@ -17,6 +17,7 @@ export default async function OrderPage({
       basket: {
         include: {
           items: { include: { product: true } },
+          deliveryPoints: { include: { deliveryPoint: true } },
         },
       },
       customer: true,

@@ -101,9 +101,17 @@ export default function BasketOrdersPage({ params }: { params: Promise<{ id: str
                     <span className="text-gray-900">{order.customerPhone || "-"}</span>
                   </div>
                   <div>
-                    <span className="text-gray-900">{t("basketOrders.address")}</span>{" "}
-                    <span className="text-gray-900">{order.deliveryAddress}</span>
+                    <span className="text-gray-900">{order.deliveryPointName ? t("basketOrders.deliveryPoint") : t("basketOrders.address")}</span>{" "}
+                    <span className="text-gray-900">
+                      {order.deliveryPointName || order.deliveryAddress}
+                    </span>
                   </div>
+                  {order.deliveryPointName && (
+                    <div>
+                      <span className="text-gray-900">{t("basketOrders.address")}</span>{" "}
+                      <span className="text-gray-900">{order.deliveryAddress}</span>
+                    </div>
+                  )}
                   {order.deliveryCity && (
                     <div>
                       <span className="text-gray-900">{t("basketOrders.city")}</span>{" "}

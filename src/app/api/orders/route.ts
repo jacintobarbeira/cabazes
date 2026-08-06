@@ -44,6 +44,7 @@ export async function GET(request: Request) {
           items: { include: { product: true } },
         },
       },
+      deliveryPoint: { select: { id: true, name: true } },
       swapChoices: {
         include: {
           baseItem: { include: { product: true } },
@@ -69,12 +70,13 @@ export async function POST(request: Request) {
     deliveryCity,
     deliveryPostalCode,
     deliveryNotes,
+    deliveryPointId,
     swapChoices,
   } = body
 
-  if (!basketId || !token || !deliveryAddress) {
+  if (!basketId || !token) {
     return NextResponse.json(
-      { error: "basketId, token, and deliveryAddress are required" },
+      { error: "basketId and token are required" },
       { status: 400 }
     )
   }
@@ -82,7 +84,12 @@ export async function POST(request: Request) {
   const inviteToken = await prisma.inviteToken.findUnique({
     where: { token },
     include: {
-      basket: { include: { items: true } },
+      basket: {
+        include: {
+          items: true,
+          deliveryPoints: { include: { deliveryPoint: true } },
+        },
+      },
       customer: true,
     },
   })
@@ -159,6 +166,48 @@ export async function POST(request: Request) {
     }
   }
 
+  let resolvedDelivery: {
+    deliveryAddress: string
+    deliveryCity: string | null
+    deliveryPostalCode: string | null
+    deliveryPointId: string | null
+  }
+
+  if (deliveryPointId) {
+    const basketDeliveryPoint = inviteToken.basket.deliveryPoints.find(
+      (rel) => rel.deliveryPoint.id === deliveryPointId
+    )
+
+    if (!basketDeliveryPoint) {
+      return NextResponse.json(
+        { error: "Delivery point is not associated with this basket" },
+        { status: 400 }
+      )
+    }
+
+    const point = basketDeliveryPoint.deliveryPoint
+    resolvedDelivery = {
+      deliveryAddress: point.address,
+      deliveryCity: point.city,
+      deliveryPostalCode: point.postalCode,
+      deliveryPointId: point.id,
+    }
+  } else {
+    if (!deliveryAddress) {
+      return NextResponse.json(
+        { error: "deliveryAddress is required when no delivery point is selected" },
+        { status: 400 }
+      )
+    }
+
+    resolvedDelivery = {
+      deliveryAddress,
+      deliveryCity: deliveryCity || null,
+      deliveryPostalCode: deliveryPostalCode || null,
+      deliveryPointId: null,
+    }
+  }
+
   const order = await prisma.$transaction(async (tx) => {
     const existingOrder = await tx.order.findFirst({
       where: { customerId: customer.id, basketId },
@@ -176,10 +225,11 @@ export async function POST(request: Request) {
         customerName: customer.name,
         customerEmail: customer.email,
         customerPhone: customer.phone,
-        deliveryAddress,
-        deliveryCity,
-        deliveryPostalCode,
-        deliveryNotes,
+        deliveryAddress: resolvedDelivery.deliveryAddress,
+        deliveryCity: resolvedDelivery.deliveryCity,
+        deliveryPostalCode: resolvedDelivery.deliveryPostalCode,
+        deliveryNotes: deliveryNotes || null,
+        deliveryPointId: resolvedDelivery.deliveryPointId,
         swapChoices: swapChoices && swapChoices.length > 0
           ? {
               create: swapChoices.map((choice: { baseItemId: string; swapItemId: string }) => ({
@@ -196,6 +246,7 @@ export async function POST(request: Request) {
             items: { include: { product: true } },
           },
         },
+        deliveryPoint: { select: { id: true, name: true } },
         swapChoices: {
           include: {
             baseItem: { include: { product: true } },

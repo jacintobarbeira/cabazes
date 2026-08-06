@@ -26,6 +26,7 @@ export async function GET(
     where: { id, farmerId },
     include: {
       items: { include: { product: true } },
+      deliveryPoints: { include: { deliveryPoint: true } },
       _count: { select: { orders: true } },
     },
   })
@@ -60,6 +61,9 @@ export async function PATCH(
 
   const basket = await prisma.basket.findFirst({
     where: { id, farmerId },
+    include: {
+      deliveryPoints: { select: { deliveryPointId: true } },
+    },
   })
 
   if (!basket) {
@@ -71,6 +75,42 @@ export async function PATCH(
       { error: "Published baskets cannot be edited" },
       { status: 400 }
     )
+  }
+
+  let deliveryPointsUpdate: Record<string, unknown> | undefined
+  if (body.deliveryPointIds !== undefined) {
+    const deliveryPointIds = body.deliveryPointIds as string[]
+    if (!Array.isArray(deliveryPointIds)) {
+      return NextResponse.json(
+        { error: "deliveryPointIds must be an array" },
+        { status: 400 }
+      )
+    }
+
+    const deliveryPoints = await prisma.deliveryPoint.findMany({
+      where: { id: { in: deliveryPointIds }, farmerId },
+      select: { id: true },
+    })
+
+    if (deliveryPoints.length !== deliveryPointIds.length) {
+      return NextResponse.json(
+        { error: "One or more delivery points are not valid for this farmer" },
+        { status: 400 }
+      )
+    }
+
+    const existingIds = new Set(
+      (basket.deliveryPoints as { deliveryPointId: string }[]).map((r) => r.deliveryPointId)
+    )
+    const newIds = new Set(deliveryPointIds)
+    const removedIds = [...existingIds].filter((pid) => !newIds.has(pid))
+
+    deliveryPointsUpdate = {
+      deleteMany: { deliveryPointId: { in: removedIds } },
+      create: deliveryPointIds
+        .filter((pid: string) => !existingIds.has(pid))
+        .map((deliveryPointId: string) => ({ deliveryPointId })),
+    }
   }
 
   const orderDeadlineDate = body.orderDeadline ? new Date(body.orderDeadline) : basket.orderDeadline
@@ -115,9 +155,11 @@ export async function PATCH(
       price: parsedPrice,
       deliveryDay: deliveryDayDate,
       allowedSwaps: parsedSwaps,
+      ...(deliveryPointsUpdate ? { deliveryPoints: deliveryPointsUpdate } : {}),
     },
     include: {
       items: { include: { product: true } },
+      deliveryPoints: { include: { deliveryPoint: true } },
     },
   }).catch(() => null)
 

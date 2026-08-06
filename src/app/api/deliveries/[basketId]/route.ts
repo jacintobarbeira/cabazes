@@ -32,7 +32,10 @@ export async function GET(
 
   const orders = await prisma.order.findMany({
     where: { basketId, status: { not: "CANCELLED" } },
-    include: { basket: { select: { id: true, name: true } } },
+    include: {
+      basket: { select: { id: true, name: true } },
+      deliveryPoint: { select: { id: true, name: true } },
+    },
     orderBy: [{ deliveryCity: "asc" }, { deliveryAddress: "asc" }],
   })
 

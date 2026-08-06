@@ -19,6 +19,7 @@ export async function GET() {
           items: { include: { product: true } },
         },
       },
+      deliveryPoint: { select: { id: true, name: true } },
       swapChoices: {
         include: {
           baseItem: { include: { product: true } },
