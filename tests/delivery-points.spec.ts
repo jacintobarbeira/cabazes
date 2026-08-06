@@ -338,6 +338,69 @@ test.describe("Delivery Points", () => {
     await expect(page.getByText("Test Delivery Points Card Basket", { exact: true })).toBeVisible()
   })
 
+  test("basket detail page shows the selected delivery points", async ({ page }) => {
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+    const point = await createTestDeliveryPoint(prisma, farmer.id, {
+      name: "Test Delivery Points Detail Point",
+      address: "9 Detail St",
+      city: "Testville",
+      postalCode: "00009",
+    })
+
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    const inTwoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+
+    const basket = await prisma.basket.create({
+      data: {
+        name: "Test Delivery Points Detail Basket",
+        orderDeadline: nextWeek,
+        price: 25.0,
+        deliveryDay: inTwoWeeks,
+        farmerId: farmer.id,
+        published: false,
+      },
+    })
+
+    await prisma.basketDeliveryPoint.create({
+      data: { basketId: basket.id, deliveryPointId: point.id },
+    })
+    await prisma.$disconnect()
+
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await page.goto(`/farmer/baskets/${basket.id}`)
+
+    await expect(page.getByText("Delivery Points", { exact: true })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText("Test Delivery Points Detail Point", { exact: true })).toBeVisible()
+    await expect(page.getByText("9 Detail St, Testville 00009", { exact: true })).toBeVisible()
+  })
+
+  test("basket detail page shows empty state when no delivery points selected", async ({ page }) => {
+    const prisma = createPrisma()
+    const farmer = await createTestFarmer(prisma)
+
+    const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+    const inTwoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
+
+    const basket = await prisma.basket.create({
+      data: {
+        name: "Test Delivery Points Detail Empty Basket",
+        orderDeadline: nextWeek,
+        price: 25.0,
+        deliveryDay: inTwoWeeks,
+        farmerId: farmer.id,
+        published: false,
+      },
+    })
+    await prisma.$disconnect()
+
+    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await page.goto(`/farmer/baskets/${basket.id}`)
+
+    await expect(page.getByText("Delivery Points", { exact: true })).toBeVisible({ timeout: 5000 })
+    await expect(page.getByText("No delivery points yet.", { exact: true })).toBeVisible()
+  })
+
   test("deliveries by date returns delivery point name and groups by point", async ({ page, request }) => {
     const prisma = createPrisma()
     const farmer = await createTestFarmer(prisma)

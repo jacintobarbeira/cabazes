@@ -183,6 +183,8 @@ export const en = {
     baseItems: "Base Items ({count})",
     swapItems: "Swap Items ({count})",
     noBaseItems: "No base items.",
+    deliveryPoints: "Delivery Points",
+    noDeliveryPoints: "No delivery points yet.",
     ordersPlaced: "order(s) placed",
   },
   basketOrders: {

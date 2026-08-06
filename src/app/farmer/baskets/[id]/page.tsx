@@ -150,6 +150,30 @@ export default function BasketDetailPage({ params }: { params: Promise<{ id: str
         </Card>
       )}
 
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("basketDetail.deliveryPoints")}</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {basket.deliveryPoints.length === 0 ? (
+            <p className="text-gray-900 text-sm">{t("basketDetail.noDeliveryPoints")}</p>
+          ) : (
+            <ul className="space-y-2">
+              {basket.deliveryPoints.map((point) => (
+                <li key={point.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
+                  <span className="text-gray-900">{point.name}</span>
+                  <span className="text-gray-900 text-sm">
+                    {point.address}
+                    {point.city ? `, ${point.city}` : ""}
+                    {point.postalCode ? ` ${point.postalCode}` : ""}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </CardContent>
+      </Card>
+
       {basket.orderCount !== undefined && basket.orderCount > 0 && (
         <Card>
           <CardContent className="pt-6">

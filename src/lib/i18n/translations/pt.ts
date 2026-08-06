@@ -183,6 +183,8 @@ export const pt = {
     baseItems: "Itens Base ({count})",
     swapItems: "Itens de Troca ({count})",
     noBaseItems: "Sem itens base.",
+    deliveryPoints: "Pontos de Entrega",
+    noDeliveryPoints: "Sem pontos de entrega.",
     ordersPlaced: "encomenda(s) feita(s)",
   },
   basketOrders: {
