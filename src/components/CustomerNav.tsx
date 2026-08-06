@@ -10,6 +10,9 @@ export function CustomerNav() {
 
   return (
     <nav className="flex items-center gap-6">
+      <Link href="/baskets" className="text-sm text-gray-900 hover:text-gray-700">
+        {t("nav.availableBaskets")}
+      </Link>
       <Link href="/my-orders" className="text-sm text-gray-900 hover:text-gray-700">
         {t("nav.myOrders")}
       </Link>

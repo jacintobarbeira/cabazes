@@ -74,60 +74,131 @@ export async function POST(request: Request) {
     swapChoices,
   } = body
 
-  if (!basketId || !token) {
+  if (!basketId) {
     return NextResponse.json(
-      { error: "basketId and token are required" },
+      { error: "basketId is required" },
       { status: 400 }
     )
   }
 
-  const inviteToken = await prisma.inviteToken.findUnique({
-    where: { token },
-    include: {
-      basket: {
-        include: {
-          items: true,
-          deliveryPoints: { include: { deliveryPoint: true } },
+  let basket: {
+    id: string
+    farmerId: string
+    orderDeadline: Date
+    allowedSwaps: number
+    items: { id: string; isBase: boolean }[]
+    deliveryPoints: { deliveryPoint: { id: string; address: string; city: string | null; postalCode: string | null } }[]
+  }
+  let customer: {
+    id: string
+    name: string | null
+    email: string | null
+    phone: string | null
+  }
+  let inviteTokenId: string | null = null
+  let usedToken: { id: string } | null = null
+
+  if (token) {
+    const inviteToken = await prisma.inviteToken.findUnique({
+      where: { token },
+      include: {
+        basket: {
+          include: {
+            items: true,
+            deliveryPoints: { include: { deliveryPoint: true } },
+          },
         },
+        customer: true,
       },
-      customer: true,
-    },
-  })
+    })
 
-  if (!inviteToken) {
-    return NextResponse.json({ error: "Invalid token" }, { status: 400 })
+    if (!inviteToken) {
+      return NextResponse.json({ error: "Invalid token" }, { status: 400 })
+    }
+
+    if (inviteToken.basketId !== basketId) {
+      return NextResponse.json({ error: "Token does not match basket" }, { status: 400 })
+    }
+
+    if (inviteToken.expiresAt < new Date()) {
+      return NextResponse.json({ error: "Token has expired" }, { status: 400 })
+    }
+
+    if (inviteToken.usedAt) {
+      return NextResponse.json({ error: "Token has already been used" }, { status: 400 })
+    }
+
+    if (inviteToken.basket.orderDeadline < new Date()) {
+      return NextResponse.json({ error: "Order deadline has passed" }, { status: 400 })
+    }
+
+    if (!inviteToken.customer) {
+      return NextResponse.json({ error: "Token has no associated customer" }, { status: 400 })
+    }
+
+    basket = inviteToken.basket
+    customer = inviteToken.customer
+    inviteTokenId = inviteToken.id
+    usedToken = { id: inviteToken.id }
+  } else {
+    const session = await auth()
+
+    if (!session?.user?.id || session.user.role !== "CUSTOMER") {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const found = await prisma.basket.findUnique({
+      where: { id: basketId },
+      include: {
+        items: true,
+        deliveryPoints: { include: { deliveryPoint: true } },
+      },
+    })
+
+    if (!found) {
+      return NextResponse.json({ error: "Basket not found" }, { status: 404 })
+    }
+
+    if (!found.published) {
+      return NextResponse.json({ error: "Basket is not available for ordering" }, { status: 400 })
+    }
+
+    if (found.orderDeadline < new Date()) {
+      return NextResponse.json({ error: "Order deadline has passed" }, { status: 400 })
+    }
+
+    const subscribed = await prisma.customerFarmer.count({
+      where: { customerId: session.user.id, farmerId: found.farmerId },
+    })
+
+    if (subscribed === 0) {
+      return NextResponse.json(
+        { error: "You are not subscribed to this basket's farmer" },
+        { status: 400 }
+      )
+    }
+
+    const me = await prisma.user.findUnique({
+      where: { id: session.user.id },
+      select: { id: true, name: true, email: true, phone: true },
+    })
+
+    if (!me) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    basket = found
+    customer = me
   }
 
-  if (inviteToken.basketId !== basketId) {
-    return NextResponse.json({ error: "Token does not match basket" }, { status: 400 })
-  }
-
-  if (inviteToken.expiresAt < new Date()) {
-    return NextResponse.json({ error: "Token has expired" }, { status: 400 })
-  }
-
-  if (inviteToken.usedAt) {
-    return NextResponse.json({ error: "Token has already been used" }, { status: 400 })
-  }
-
-  if (inviteToken.basket.orderDeadline < new Date()) {
-    return NextResponse.json({ error: "Order deadline has passed" }, { status: 400 })
-  }
-
-  const customer = inviteToken.customer
-
-  if (!customer) {
-    return NextResponse.json({ error: "Token has no associated customer" }, { status: 400 })
-  }
-
-  const basketItems = inviteToken.basket.items
+  const basketItems = basket.items
   const baseItems = basketItems.filter((i) => i.isBase)
   const swapItems = basketItems.filter((i) => !i.isBase)
 
   if (swapChoices && swapChoices.length > 0) {
-    if (swapChoices.length > inviteToken.basket.allowedSwaps) {
+    if (swapChoices.length > basket.allowedSwaps) {
       return NextResponse.json(
-        { error: `You can choose at most ${inviteToken.basket.allowedSwaps} swaps` },
+        { error: `You can choose at most ${basket.allowedSwaps} swaps` },
         { status: 400 }
       )
     }
@@ -174,7 +245,7 @@ export async function POST(request: Request) {
   }
 
   if (deliveryPointId) {
-    const basketDeliveryPoint = inviteToken.basket.deliveryPoints.find(
+    const basketDeliveryPoint = basket.deliveryPoints.find(
       (rel) => rel.deliveryPoint.id === deliveryPointId
     )
 
@@ -220,7 +291,7 @@ export async function POST(request: Request) {
     const createdOrder = await tx.order.create({
       data: {
         basketId,
-        inviteTokenId: inviteToken.id,
+        inviteTokenId,
         customerId: customer.id,
         customerName: customer.name,
         customerEmail: customer.email,
@@ -260,10 +331,12 @@ export async function POST(request: Request) {
       throw new Error("You have already placed an order for this basket")
     }
 
-    await tx.inviteToken.update({
-      where: { id: inviteToken.id },
-      data: { usedAt: new Date() },
-    })
+    if (usedToken) {
+      await tx.inviteToken.update({
+        where: { id: usedToken.id },
+        data: { usedAt: new Date() },
+      })
+    }
 
     return createdOrder
   }).catch((err) => {

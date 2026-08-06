@@ -42,6 +42,7 @@ const TEST_BASKET_PREFIXES = [
   "Scope Basket",
   "Other Scope Basket",
   "Test Delivery Points ",
+  "Test Available ",
 ]
 
 const TEST_TOKEN_PREFIX = "test-"
@@ -90,6 +91,9 @@ const TEST_USER_EMAILS = [
   "test-seed-farmer@example.com",
   "test-seed-customer@example.com",
   "test-seed-admin@example.com",
+  "test-available-customer@example.com",
+  "test-available-farmer@example.com",
+  "test-available-farmer-b@example.com",
 ]
 
 export const TEST_PASSWORDS = {
@@ -139,6 +143,16 @@ export async function createTestDeliveryPoint(
       postalCode: opts && typeof opts === "object" ? (opts.postalCode || null) : null,
       farmerId,
     },
+  })
+}
+
+export async function subscribeCustomer(
+  prisma: any,
+  customerId: string,
+  farmerId: string
+) {
+  return prisma.customerFarmer.create({
+    data: { customerId, farmerId },
   })
 }
 
@@ -194,6 +208,24 @@ async function cleanupTestDataOnce() {
         name: { startsWith: "Test " },
       },
     })
+
+    const testUsers = await prisma.user.findMany({
+      where: {
+        OR: [
+          { email: { in: TEST_USER_EMAILS } },
+          { email: { startsWith: TEST_USER_PREFIX } },
+        ],
+      },
+      select: { id: true },
+    })
+
+    const testUserIds = testUsers.map((u: { id: string }) => u.id)
+
+    if (testUserIds.length > 0) {
+      await prisma.customerFarmer.deleteMany({
+        where: { OR: [{ customerId: { in: testUserIds } }, { farmerId: { in: testUserIds } }] },
+      })
+    }
 
     for (const email of TEST_USER_EMAILS) {
       await prisma.user.delete({ where: { email } }).catch(() => {})

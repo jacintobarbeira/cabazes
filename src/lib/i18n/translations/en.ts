@@ -11,6 +11,7 @@ export const en = {
     helpers: "Helpers",
     profile: "Profile",
     myOrders: "My Orders",
+    availableBaskets: "Available Baskets",
     signOut: "Sign out",
     farmers: "Farmers",
   },
@@ -382,6 +383,20 @@ export const en = {
     deadlinePassedMsg: "The order deadline for this basket has passed.",
     invalidLink: "Invalid Link",
     invalidLinkMsg: "This link is not associated with a customer.",
+  },
+  availableBaskets: {
+    title: "Available Baskets",
+    loading: "Loading baskets...",
+    noFarmers: "You are not subscribed to any farmers yet. Subscribe to a farmer to order from them.",
+    manageFarmers: "Manage Farmers",
+    noBaskets: "No baskets available right now. Check back later for new baskets from your farmers!",
+    delivery: "Delivery:",
+    orderBy: "Order by:",
+    items: "Items:",
+    order: "Order",
+  },
+  basketOrder: {
+    backToBaskets: "Back to available baskets",
   },
   orderForm: {
     orderPlaced: "Order Placed!",

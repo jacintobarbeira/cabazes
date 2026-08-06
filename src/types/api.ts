@@ -53,6 +53,17 @@ export interface DeliveryPointDTO {
   updatedAt: string
 }
 
+export interface AvailableBasketDTO {
+  id: string
+  name: string
+  description: string | null
+  price: string
+  deliveryDay: string
+  orderDeadline: string
+  farmerName: string | null
+  itemCount: number
+}
+
 export interface BasketDTO {
   id: string
   name: string

@@ -1,6 +1,8 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
+import { useState } from "react"
 import { Button } from "@/components/Button"
 import { Input, Textarea } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
@@ -23,11 +25,14 @@ interface OrderFormProps {
     notes: string
   }
   token: string
+  mode?: "token" | "session"
 }
 
-export default function OrderForm({ basket, customer, token }: OrderFormProps) {
+export default function OrderForm({ basket, customer, token, mode = "token" }: OrderFormProps) {
   const { t } = useTranslation()
-  const [timezone, setTimezone] = useState("UTC")
+  const { data: session } = useSession()
+  const router = useRouter()
+  const timezone = session?.user?.timezone || "UTC"
   const [deliveryMode, setDeliveryMode] = useState<"customer" | "point">("customer")
   const [deliveryPointId, setDeliveryPointId] = useState("")
   const [deliveryAddress, setDeliveryAddress] = useState(customer.address)
@@ -38,15 +43,6 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const [success, setSuccess] = useState(false)
-
-  useEffect(() => {
-    try {
-      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone
-      setTimezone(tz)
-    } catch {
-      setTimezone("UTC")
-    }
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -59,7 +55,7 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           basketId: basket.id,
-          token,
+          token: mode === "token" ? token : undefined,
           deliveryAddress,
           deliveryCity,
           deliveryPostalCode,
@@ -94,6 +90,13 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
             <p className="mt-2 text-gray-900">
               {t("orderForm.deliveredOn", { name: basket.name, date: formatDateOnly(basket.deliveryDay, timezone) })}
             </p>
+            {mode === "session" && (
+              <div className="mt-4">
+                <Button variant="outline" onClick={() => router.push("/baskets")}>
+                  {t("basketOrder.backToBaskets")}
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -123,7 +126,17 @@ export default function OrderForm({ basket, customer, token }: OrderFormProps) {
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
       <div className="max-w-2xl mx-auto space-y-6">
-        <div className="flex justify-end">
+        <div className="flex items-center justify-between">
+          {mode === "session" ? (
+            <button
+              onClick={() => router.push("/baskets")}
+              className="text-sm text-green-600 hover:text-green-700"
+            >
+              ← {t("basketOrder.backToBaskets")}
+            </button>
+          ) : (
+            <span />
+          )}
           <LanguageSwitcher />
         </div>
         <Card>

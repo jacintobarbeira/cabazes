@@ -11,6 +11,7 @@ export const pt = {
     helpers: "Auxiliares",
     profile: "Perfil",
     myOrders: "As Minhas Encomendas",
+    availableBaskets: "Cabazes Disponíveis",
     signOut: "Sair",
     farmers: "Produtores",
   },
@@ -382,6 +383,20 @@ export const pt = {
     deadlinePassedMsg: "O prazo de encomenda para este cabaz expirou.",
     invalidLink: "Link Inválido",
     invalidLinkMsg: "Este link não está associado a um cliente.",
+  },
+  availableBaskets: {
+    title: "Cabazes Disponíveis",
+    loading: "A carregar cabazes...",
+    noFarmers: "Ainda não está subscrito a nenhum produtor. Subscreva um produtor para poder encomendar.",
+    manageFarmers: "Gerir Produtores",
+    noBaskets: "Não há cabazes disponíveis neste momento. Volte mais tarde para novos cabazes dos seus produtores!",
+    delivery: "Entrega:",
+    orderBy: "Encomendar até:",
+    items: "Itens:",
+    order: "Encomendar",
+  },
+  basketOrder: {
+    backToBaskets: "Voltar aos cabazes disponíveis",
   },
   orderForm: {
     orderPlaced: "Encomenda Feita!",
