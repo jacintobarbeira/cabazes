@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, loginAsFarmerPage, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -8,15 +8,6 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await cleanupTestData()
 })
-
-async function loginAsFarmer(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
-}
 
 test.describe("Basket Constraints", () => {
   test("should reject duplicate basket name and delivery date", async ({ request }) => {
@@ -80,7 +71,7 @@ test.describe("Basket Constraints", () => {
 
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     await page.goto(`/farmer/baskets/${basket.id}`)
     await expect(page.getByText("Test Empty Basket")).toBeVisible()
@@ -92,7 +83,7 @@ test.describe("Basket Constraints", () => {
     const farmer = await createTestFarmer(prisma)
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     await page.goto("/farmer/baskets/non-existent-id")
     await expect(page.getByText("Basket not found")).toBeVisible()
@@ -355,7 +346,7 @@ test.describe("Order Constraints", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer1.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer1.email, TEST_PASSWORDS.farmer)
 
     const ordersRes = await page.request.get("/api/orders")
     expect(ordersRes.ok()).toBeTruthy()
@@ -401,7 +392,7 @@ test.describe("Order Constraints", () => {
 
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer1.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer1.email, TEST_PASSWORDS.farmer)
 
     await expect(page.getByText("Test Dashboard Farmer 1 Basket")).toBeVisible()
     await expect(page.getByText("Test Dashboard Farmer 2 Basket")).not.toBeVisible()
@@ -457,7 +448,7 @@ test.describe("Farmer Data Isolation", () => {
 
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer1.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer1.email, TEST_PASSWORDS.farmer)
 
     const basketsRes = await page.request.get("/api/baskets")
     expect(basketsRes.ok()).toBeTruthy()

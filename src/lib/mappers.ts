@@ -10,6 +10,7 @@ import type {
   OrderSwapChoiceDTO,
   FarmerHelperDTO,
   DeliveryPointDTO,
+  AvailableBasketDTO,
 } from "@/types/api"
 
 export function toUserDTO(user: {
@@ -164,6 +165,28 @@ export function toDeliveryPointDTO(point: {
     postalCode: point.postalCode,
     createdAt: point.createdAt.toISOString(),
     updatedAt: point.updatedAt.toISOString(),
+  }
+}
+
+export function toAvailableBasketDTO(basket: {
+  id: string
+  name: string
+  description: string | null
+  price: { toString(): string }
+  deliveryDay: Date
+  orderDeadline: Date
+  farmer: { name: string | null }
+  _count: { items: number }
+}): AvailableBasketDTO {
+  return {
+    id: basket.id,
+    name: basket.name,
+    description: basket.description,
+    price: basket.price.toString(),
+    deliveryDay: basket.deliveryDay.toISOString(),
+    orderDeadline: basket.orderDeadline.toISOString(),
+    farmerName: basket.farmer.name,
+    itemCount: basket._count.items,
   }
 }
 

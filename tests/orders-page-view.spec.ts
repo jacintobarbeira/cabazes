@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, loginAsFarmerPage, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -8,15 +8,6 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await cleanupTestData()
 })
-
-async function loginAsFarmer(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
-}
 
 test.describe("Orders Page - View Button", () => {
   test("orders page shows View button for each order", async ({ page, request }) => {
@@ -70,7 +61,7 @@ test.describe("Orders Page - View Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/orders")
 
     await expect(page.getByRole("button", { name: "View" }).first()).toBeVisible({ timeout: 5000 })
@@ -119,7 +110,7 @@ test.describe("Orders Page - View Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/orders")
 
     const basketLink = page.locator(`a[href="/farmer/baskets/${basket.id}"]`).first()
@@ -186,7 +177,7 @@ test.describe("Orders Page - View Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/orders")
 
     await page.getByRole("button", { name: "View" }).first().click()
@@ -253,7 +244,7 @@ test.describe("Orders Page - View Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/orders")
 
     await page.getByRole("button", { name: "View" }).first().click()
@@ -305,7 +296,7 @@ test.describe("Orders Page - View Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/orders")
 
     await page.getByRole("button", { name: "View" }).first().click()

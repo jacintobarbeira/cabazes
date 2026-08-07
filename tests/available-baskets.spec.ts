@@ -6,6 +6,7 @@ import {
   createTestCustomer,
   createTestDeliveryPoint,
   subscribeCustomer,
+  loginViaUI,
   TEST_PASSWORDS,
 } from "./helpers"
 
@@ -23,12 +24,7 @@ test.afterEach(async () => {
 })
 
 async function loginAsCustomer(page: any) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', CUSTOMER_EMAIL)
-  await page.fill('input[type="password"]', TEST_PASSWORDS.customer)
-  await page.click('button[type="submit"]')
-  await page.waitForURL(/.*my-orders|.*baskets/, { timeout: 10000 })
+  await loginViaUI(page, CUSTOMER_EMAIL, TEST_PASSWORDS.customer, /.*(dashboard|my-orders|baskets)/)
 }
 
 async function createPublishedBasket(

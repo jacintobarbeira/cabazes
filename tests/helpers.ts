@@ -1,3 +1,5 @@
+import { expect } from "@playwright/test"
+import type { Page, APIRequestContext } from "@playwright/test"
 import { PrismaClient } from "@prisma/client"
 import { PrismaLibSql } from "@prisma/adapter-libsql"
 
@@ -159,6 +161,91 @@ export async function subscribeCustomer(
   return prisma.customerFarmer.create({
     data: { customerId, farmerId },
   })
+}
+
+export async function loginViaUI(
+  page: Page,
+  email: string,
+  password: string,
+  urlPattern: RegExp
+) {
+  await page.goto("/login")
+  await page.waitForLoadState("networkidle")
+  await page.fill('input[name="email"]', email)
+  await page.fill('input[type="password"]', password)
+  await page.click('button[type="submit"]')
+  await expect(page).toHaveURL(urlPattern, { timeout: 10000 })
+}
+
+export async function loginAsFarmerPage(page: Page, email: string, password: string) {
+  await loginViaUI(page, email, password, /.*dashboard/)
+}
+
+export async function loginAsCustomerPage(page: Page, email: string, password: string) {
+  await loginViaUI(page, email, password, /.*(dashboard|my-orders)/)
+}
+
+export async function loginAsFarmerRequest(request: APIRequestContext, farmer: { email: string }) {
+  const res = await request.post("/api/auth/login", {
+    data: { email: farmer.email, password: TEST_PASSWORDS.farmer },
+  })
+  expect(res.ok()).toBeTruthy()
+}
+
+export async function loginAsCustomerRequest(request: APIRequestContext, customer: { email: string }) {
+  const res = await request.post("/api/auth/login", {
+    data: { email: customer.email, password: TEST_PASSWORDS.customer },
+  })
+  expect(res.ok()).toBeTruthy()
+}
+
+export async function createTestProduct(prisma: PrismaClient, farmerId: string, name: string) {
+  return prisma.product.create({
+    data: { name, farmerId, active: true },
+  })
+}
+
+export async function createTestBasket(
+  prisma: PrismaClient,
+  farmerId: string,
+  opts: {
+    name: string
+    items?: Array<{ productId: string; isBase: boolean }>
+    allowedSwaps?: number
+    published?: boolean
+    orderDeadline?: Date
+    deliveryDay?: Date
+    description?: string
+    price?: number
+  }
+) {
+  const orderDeadline = opts.orderDeadline || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
+  const deliveryDay = opts.deliveryDay || new Date(Date.now() + 24 * 60 * 60 * 1000)
+
+  const basket = await prisma.basket.create({
+    data: {
+      name: opts.name,
+      description: opts.description || null,
+      orderDeadline,
+      price: opts.price ?? 25.0,
+      deliveryDay,
+      allowedSwaps: opts.allowedSwaps ?? 3,
+      farmerId,
+      published: opts.published ?? false,
+    },
+  })
+
+  for (const item of opts.items || []) {
+    await prisma.basketItem.create({
+      data: {
+        basketId: basket.id,
+        productId: item.productId,
+        isBase: item.isBase,
+      },
+    })
+  }
+
+  return basket
 }
 
 export function createPrisma() {

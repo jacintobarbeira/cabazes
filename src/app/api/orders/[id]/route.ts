@@ -1,25 +1,20 @@
 import { prisma } from "@/lib/db"
 import { toOrderDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import { getEffectiveFarmerId } from "@/lib/auth-helpers"
-import { csrfCheck } from "@/lib/csrf"
+import { requireSession, getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { withCsrf } from "@/lib/csrf"
 import { sendDeliveredNotification } from "@/lib/email"
+import { ORDER_DETAIL_INCLUDE } from "@/lib/prisma-includes"
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = csrfCheck(request)
-  if (csrfError) return csrfError
+export const PATCH = withCsrf(
+  async (
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ): Promise<Response> => {
+    const guard = await requireSession()
+    if (!guard.ok) return guard.error
 
-  const session = await auth()
-
-  if (!session?.user?.id) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const { id } = await params
+    const { id } = await params
   const body = await request.json()
   const { status: newStatus } = body
 
@@ -41,7 +36,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Order not found" }, { status: 404 })
   }
 
-  if (["FARMER", "FARMER_HELPER"].includes(session.user.role)) {
+  if (["FARMER", "FARMER_HELPER"].includes(guard.user.role || "")) {
     const farmerId = await getEffectiveFarmerId()
     if (!farmerId || order.basket.farmerId !== farmerId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
@@ -69,8 +64,8 @@ export async function PATCH(
         { status: 400 }
       )
     }
-  } else if (session.user.role === "CUSTOMER") {
-    if (order.customerId !== session.user.id) {
+  } else if (guard.user.role === "CUSTOMER") {
+    if (order.customerId !== guard.user.id) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
@@ -112,21 +107,7 @@ export async function PATCH(
 
   const updated = await prisma.order.findUniqueOrThrow({
     where: { id },
-    include: {
-      basket: {
-        select: {
-          name: true,
-          items: { include: { product: true } },
-        },
-      },
-      deliveryPoint: { select: { id: true, name: true } },
-      swapChoices: {
-        include: {
-          baseItem: { include: { product: true } },
-          swapItem: { include: { product: true } },
-        },
-      },
-    },
+    include: ORDER_DETAIL_INCLUDE,
   })
 
   if (newStatus === "DELIVERED" && order.customerEmail) {
@@ -139,4 +120,4 @@ export async function PATCH(
   }
 
   return NextResponse.json(toOrderDTO(updated))
-}
+})

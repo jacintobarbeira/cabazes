@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface Helper {
@@ -18,31 +19,14 @@ interface Helper {
 
 export default function HelpersPage() {
   const { t } = useTranslation()
-  const [helpers, setHelpers] = useState<Helper[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, loading, reload: fetchHelpers } = useFetch<Helper[]>("/api/farmer/helpers")
+  const helpers = data ?? []
   const [showForm, setShowForm] = useState(false)
   const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [formError, setFormError] = useState("")
   const [tempPassword, setTempPassword] = useState<string | null>(null)
-
-  const fetchHelpers = () => {
-    fetch("/api/farmer/helpers")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setHelpers(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }
-
-  useEffect(() => {
-    fetchHelpers()
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

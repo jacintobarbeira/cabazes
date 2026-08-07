@@ -1,20 +1,12 @@
 import { prisma } from "@/lib/db"
 import { toDeliveryAddressDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import { getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { requireFarmerOrHelper } from "@/lib/auth-helpers"
+import { ORDER_DETAIL_INCLUDE } from "@/lib/prisma-includes"
 
 export async function GET(request: Request) {
-  const session = await auth()
-
-  if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const farmerId = await getEffectiveFarmerId()
-  if (!farmerId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const guard = await requireFarmerOrHelper()
+  if (!guard.ok) return guard.error
 
   const url = new URL(request.url)
   const dateParam = url.searchParams.get("date")
@@ -22,7 +14,7 @@ export async function GET(request: Request) {
   if (!dateParam) {
     const orders = await prisma.order.findMany({
       where: {
-        basket: { farmerId },
+        basket: { farmerId: guard.farmerId },
         status: { not: "CANCELLED" },
       },
       include: { basket: { select: { deliveryDay: true } } },
@@ -48,7 +40,7 @@ export async function GET(request: Request) {
   const orders = await prisma.order.findMany({
     where: {
       basket: {
-        farmerId,
+        farmerId: guard.farmerId,
         deliveryDay: {
           gte: date,
           lt: nextDate,
@@ -56,22 +48,7 @@ export async function GET(request: Request) {
       },
       status: { not: "CANCELLED" },
     },
-    include: {
-      basket: {
-        select: {
-          id: true,
-          name: true,
-          items: { include: { product: true } },
-        },
-      },
-      deliveryPoint: { select: { id: true, name: true } },
-      swapChoices: {
-        include: {
-          baseItem: { include: { product: true } },
-          swapItem: { include: { product: true } },
-        },
-      },
-    },
+    include: ORDER_DETAIL_INCLUDE,
     orderBy: [{ deliveryCity: "asc" }, { deliveryAddress: "asc" }],
   })
 

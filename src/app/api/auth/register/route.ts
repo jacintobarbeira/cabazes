@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server"
 import { prisma } from "@/lib/db"
-import bcrypt from "bcryptjs"
 import { validatePassword } from "@/lib/password-policy"
-import { isRateLimited, recordRateLimitAttempt } from "@/lib/rate-limiter"
+import { isRateLimited, recordRateLimitAttempt, rateLimitError } from "@/lib/rate-limiter"
 import { auditLog } from "@/lib/audit"
 import { csrfCheck } from "@/lib/csrf"
+import { hashPassword } from "@/lib/passwords"
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -37,10 +37,7 @@ export async function POST(request: Request) {
 
     const rateCheck = await isRateLimited(`register:${normalizedEmail}`)
     if (!rateCheck.allowed) {
-      return NextResponse.json(
-        { error: `Too many attempts. Try again in ${rateCheck.retryAfter} seconds.` },
-        { status: 429 }
-      )
+      return rateLimitError(rateCheck.retryAfter)
     }
 
     await recordRateLimitAttempt(`register:${normalizedEmail}`)
@@ -61,7 +58,7 @@ export async function POST(request: Request) {
       )
     }
 
-    const passwordHash = await bcrypt.hash(password, 10)
+    const passwordHash = await hashPassword(password)
 
     const farmerIds: string[] = Array.isArray(body.farmerIds) ? body.farmerIds : []
 

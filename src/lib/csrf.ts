@@ -39,3 +39,13 @@ export function csrfCheck(request: Request): NextResponse | null {
   }
   return null
 }
+
+export function withCsrf<TContext>(
+  handler: (request: Request, context: TContext) => Promise<Response>
+): (request: Request, context: TContext) => Promise<Response> {
+  return async (request, context) => {
+    const csrfError = csrfCheck(request)
+    if (csrfError) return csrfError
+    return handler(request, context)
+  }
+}

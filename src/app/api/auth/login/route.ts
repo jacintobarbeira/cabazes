@@ -1,6 +1,6 @@
 import { signIn } from "@/auth"
 import { NextResponse } from "next/server"
-import { isRateLimited } from "@/lib/rate-limiter"
+import { isRateLimited, rateLimitError } from "@/lib/rate-limiter"
 import { checkLockout } from "@/lib/lockout"
 import { auditLog } from "@/lib/audit"
 import { csrfCheck } from "@/lib/csrf"
@@ -19,10 +19,7 @@ export async function POST(request: Request) {
   const rateCheck = await isRateLimited(`login:${email}`)
   if (!rateCheck.allowed) {
     auditLog({ event: "LOGIN_RATE_LIMITED", email, retryAfter: rateCheck.retryAfter || 0 })
-    return NextResponse.json(
-      { error: `Too many attempts. Try again in ${rateCheck.retryAfter} seconds.` },
-      { status: 429 }
-    )
+    return rateLimitError(rateCheck.retryAfter)
   }
 
   const { locked, retryAfter } = await checkLockout(email)

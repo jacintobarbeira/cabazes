@@ -3,18 +3,11 @@
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
-import { Badge } from "@/components/Badge"
+import { OrderStatusBadge } from "@/components/OrderStatusBadge"
 import { Button } from "@/components/Button"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatDate } from "@/lib/dates"
 import type { OrderDTO } from "@/types/api"
-
-const statusVariant: Record<string, "warning" | "success" | "info" | "danger"> = {
-  PENDING: "warning",
-  CONFIRMED: "success",
-  DELIVERED: "info",
-  CANCELLED: "danger",
-}
 
 export default function BasketOrdersPage({ params }: { params: Promise<{ id: string }> }) {
   const { t } = useTranslation()
@@ -88,9 +81,7 @@ export default function BasketOrdersPage({ params }: { params: Promise<{ id: str
                         {t("basketOrders.confirm")}
                       </Button>
                     )}
-                    <Badge variant={statusVariant[order.status] || "default"}>
-                      {t("statuses." + order.status)}
-                    </Badge>
+                    <OrderStatusBadge status={order.status} />
                   </div>
                 </div>
               </CardHeader>

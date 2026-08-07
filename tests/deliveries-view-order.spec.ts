@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, loginAsFarmerPage, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -8,15 +8,6 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await cleanupTestData()
 })
-
-async function loginAsFarmer(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
-}
 
 test.describe("Deliveries Page - View Order Button", () => {
   test("deliveries page shows View Order button for each delivery", async ({ page, request }) => {
@@ -61,7 +52,7 @@ test.describe("Deliveries Page - View Order Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/deliveries")
     await page.locator("text=1 deliveries").first().click()
     await expect(page.getByRole("button", { name: "View Order" }).first()).toBeVisible({ timeout: 5000 })
@@ -109,7 +100,7 @@ test.describe("Deliveries Page - View Order Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/deliveries")
 
     await expect(page.locator("text=1 deliveries").first()).toBeVisible({ timeout: 5000 })
@@ -174,7 +165,7 @@ test.describe("Deliveries Page - View Order Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/deliveries")
 
     await expect(page.locator("text=1 deliveries").first()).toBeVisible({ timeout: 5000 })
@@ -244,7 +235,7 @@ test.describe("Deliveries Page - View Order Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/deliveries")
 
     await expect(page.locator("text=1 deliveries").first()).toBeVisible({ timeout: 5000 })
@@ -299,7 +290,7 @@ test.describe("Deliveries Page - View Order Button", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/deliveries")
     await page.locator("text=1 deliveries").first().click()
 

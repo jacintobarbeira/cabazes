@@ -1,28 +1,19 @@
 import { prisma } from "@/lib/db"
 import { toDeliveryAddressDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import { getEffectiveFarmerId } from "@/lib/auth-helpers"
+import { requireFarmerOrHelper } from "@/lib/auth-helpers"
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ basketId: string }> }
 ) {
-  const session = await auth()
-
-  if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const farmerId = await getEffectiveFarmerId()
-  if (!farmerId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const guard = await requireFarmerOrHelper()
+  if (!guard.ok) return guard.error
 
   const { basketId } = await params
 
   const basket = await prisma.basket.findUnique({
-    where: { id: basketId, farmerId },
+    where: { id: basketId, farmerId: guard.farmerId },
     select: { id: true },
   })
 

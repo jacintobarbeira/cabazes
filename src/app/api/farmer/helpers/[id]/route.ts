@@ -1,42 +1,38 @@
 import { prisma } from "@/lib/db"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
+import { requireFarmer } from "@/lib/auth-helpers"
 import { auditLog } from "@/lib/audit"
-import { csrfCheck } from "@/lib/csrf"
+import { withCsrf } from "@/lib/csrf"
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = csrfCheck(request)
-  if (csrfError) return csrfError
+export const PATCH = withCsrf(
+  async (
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ): Promise<Response> => {
+    const guard = await requireFarmer()
+    if (!guard.ok) return guard.error
 
-  const session = await auth()
+    const { id } = await params
 
-  if (!session?.user?.id || session.user?.role !== "FARMER") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    const helper = await prisma.user.findFirst({
+      where: { id, managedById: guard.user.id },
+    })
+
+    if (!helper) {
+      return NextResponse.json({ error: "Helper not found" }, { status: 404 })
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { disabled: !helper.disabled },
+    })
+
+    if (updated.disabled) {
+      auditLog({ event: "HELPER_DISABLED", farmerId: guard.user.id, helperId: id })
+    } else {
+      auditLog({ event: "HELPER_ENABLED", farmerId: guard.user.id, helperId: id })
+    }
+
+    return NextResponse.json({ id: updated.id, disabled: updated.disabled })
   }
-
-  const { id } = await params
-
-  const helper = await prisma.user.findFirst({
-    where: { id, managedById: session.user.id },
-  })
-
-  if (!helper) {
-    return NextResponse.json({ error: "Helper not found" }, { status: 404 })
-  }
-
-  const updated = await prisma.user.update({
-    where: { id },
-    data: { disabled: !helper.disabled },
-  })
-
-  if (updated.disabled) {
-    auditLog({ event: "HELPER_DISABLED", farmerId: session.user.id, helperId: id })
-  } else {
-    auditLog({ event: "HELPER_ENABLED", farmerId: session.user.id, helperId: id })
-  }
-
-  return NextResponse.json({ id: updated.id, disabled: updated.disabled })
-}
+)

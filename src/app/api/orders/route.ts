@@ -1,23 +1,15 @@
 import { prisma } from "@/lib/db"
 import { toOrderDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import { getEffectiveFarmerId } from "@/lib/auth-helpers"
-import { csrfCheck } from "@/lib/csrf"
+import { requireFarmerOrHelper, requireCustomer } from "@/lib/auth-helpers"
+import { withCsrf } from "@/lib/csrf"
 import { validatePassword } from "@/lib/password-policy"
-import bcrypt from "bcryptjs"
+import { hashPassword } from "@/lib/passwords"
+import { ORDER_DETAIL_INCLUDE } from "@/lib/prisma-includes"
 
 export async function GET(request: Request) {
-  const session = await auth()
-
-  if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const farmerId = await getEffectiveFarmerId()
-  if (!farmerId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const guard = await requireFarmerOrHelper()
+  if (!guard.ok) return guard.error
 
   const { searchParams } = new URL(request.url)
   const basketId = searchParams.get("basketId")
@@ -25,7 +17,7 @@ export async function GET(request: Request) {
 
   const where: Record<string, unknown> = {
     basket: {
-      farmerId,
+      farmerId: guard.farmerId,
     },
   }
 
@@ -39,32 +31,16 @@ export async function GET(request: Request) {
 
   const orders = await prisma.order.findMany({
     where,
-    include: {
-      basket: {
-        select: {
-          name: true,
-          items: { include: { product: true } },
-        },
-      },
-      deliveryPoint: { select: { id: true, name: true } },
-      swapChoices: {
-        include: {
-          baseItem: { include: { product: true } },
-          swapItem: { include: { product: true } },
-        },
-      },
-    },
+    include: ORDER_DETAIL_INCLUDE,
     orderBy: { createdAt: "desc" },
   })
 
   return NextResponse.json(orders.map(toOrderDTO))
 }
 
-export async function POST(request: Request) {
-  const csrfError = csrfCheck(request)
-  if (csrfError) return csrfError
-
-  const body = await request.json()
+export const POST = withCsrf(
+  async (request: Request): Promise<Response> => {
+    const body = await request.json()
   const {
     basketId,
     token,
@@ -149,11 +125,8 @@ export async function POST(request: Request) {
     inviteTokenId = inviteToken.id
     usedToken = { id: inviteToken.id }
   } else {
-    const session = await auth()
-
-    if (!session?.user?.id || session.user.role !== "CUSTOMER") {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
+    const guard = await requireCustomer()
+    if (!guard.ok) return guard.error
 
     const found = await prisma.basket.findUnique({
       where: { id: basketId },
@@ -176,7 +149,7 @@ export async function POST(request: Request) {
     }
 
     const subscribed = await prisma.customerFarmer.count({
-      where: { customerId: session.user.id, farmerId: found.farmerId },
+      where: { customerId: guard.user.id, farmerId: found.farmerId },
     })
 
     if (subscribed === 0) {
@@ -187,7 +160,7 @@ export async function POST(request: Request) {
     }
 
     const me = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: guard.user.id },
       select: { id: true, name: true, email: true, phone: true },
     })
 
@@ -208,7 +181,7 @@ export async function POST(request: Request) {
     if (passwordError) {
       return NextResponse.json({ error: passwordError }, { status: 400 })
     }
-    verifyHash = await bcrypt.hash(verifyPassword, 10)
+    verifyHash = await hashPassword(verifyPassword)
   }
 
   const basketItems = basket.items
@@ -330,21 +303,7 @@ export async function POST(request: Request) {
             }
           : undefined,
       },
-      include: {
-        basket: {
-          select: {
-            name: true,
-            items: { include: { product: true } },
-          },
-        },
-        deliveryPoint: { select: { id: true, name: true } },
-        swapChoices: {
-          include: {
-            baseItem: { include: { product: true } },
-            swapItem: { include: { product: true } },
-          },
-        },
-      },
+      include: ORDER_DETAIL_INCLUDE,
     }).catch(() => null)
 
     if (!createdOrder) {
@@ -382,4 +341,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(toOrderDTO(order), { status: 201 })
-}
+})

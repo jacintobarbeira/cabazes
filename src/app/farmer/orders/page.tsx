@@ -1,44 +1,24 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
-import { Badge } from "@/components/Badge"
+import { OrderStatusBadge } from "@/components/OrderStatusBadge"
 import { Button } from "@/components/Button"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatDateOnly } from "@/lib/dates"
 import type { OrderDTO } from "@/types/api"
-
-const statusVariant: Record<string, "warning" | "success" | "info" | "danger"> = {
-  PENDING: "warning",
-  CONFIRMED: "success",
-  DELIVERED: "info",
-  CANCELLED: "danger",
-}
 
 export default function OrdersPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const timezone = session?.user?.timezone || "UTC"
-  const [orders, setOrders] = useState<OrderDTO[]>([])
-  const [loading, setLoading] = useState(true)
   const [filter, setFilter] = useState("")
+  const { data, loading } = useFetch<OrderDTO[]>(filter ? `/api/orders?status=${filter}` : "/api/orders")
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
-
-  useEffect(() => {
-    const url = filter ? `/api/orders?status=${filter}` : "/api/orders"
-    fetch(url)
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setOrders(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [filter])
+  const orders = data ?? []
 
   if (loading) return <p className="text-gray-900">{t("common.loading")}</p>
 
@@ -101,9 +81,7 @@ export default function OrdersPage() {
                       </Link>
                     </td>
                     <td className="py-2 text-gray-900">
-                      <Badge variant={statusVariant[order.status] || "default"}>
-                        {t("statuses." + order.status)}
-                      </Badge>
+                      <OrderStatusBadge status={order.status} />
                     </td>
                     <td className="py-2 text-gray-900">
                       {order.deliveryPointName ? (
@@ -137,7 +115,7 @@ export default function OrdersPage() {
                 <div key={`detail-${order.id}`} className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                   <div className="flex items-center justify-between mb-3">
                     <h3 className="font-medium text-gray-900">{t("orders.orderDetails")} {order.customerName || t("orders.unknown")}</h3>
-                    <Badge variant={statusVariant[order.status] || "default"}>{t("statuses." + order.status)}</Badge>
+                    <OrderStatusBadge status={order.status} />
                   </div>
 
                   <div className="grid grid-cols-2 gap-4 text-sm mb-4">

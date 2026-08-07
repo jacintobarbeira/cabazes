@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, loginAsFarmerPage, loginAsCustomerPage, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -8,24 +8,6 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await cleanupTestData()
 })
-
-async function loginAsCustomer(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await page.waitForURL(/.*my-orders|.*dashboard/, { timeout: 10000 })
-}
-
-async function loginAsFarmer(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await page.waitForURL(/.*dashboard/, { timeout: 10000 })
-}
 
 test.describe("Order Detail - Base Items", () => {
   test("customer orders API returns baseItems for each order", async ({ page }) => {
@@ -91,7 +73,7 @@ test.describe("Order Detail - Base Items", () => {
       },
     })
 
-    await loginAsCustomer(page, customer.email, TEST_PASSWORDS.customer)
+    await loginAsCustomerPage(page, customer.email, TEST_PASSWORDS.customer)
 
     const meRes = await page.request.get("/api/customers/me/orders")
     expect(meRes.ok()).toBeTruthy()
@@ -155,7 +137,7 @@ test.describe("Order Detail - Base Items", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const ordersRes = await page.request.get("/api/orders")
     expect(ordersRes.ok()).toBeTruthy()
@@ -224,7 +206,7 @@ test.describe("Order Detail - Base Items", () => {
       },
     })
 
-    await loginAsCustomer(page, customer.email, TEST_PASSWORDS.customer)
+    await loginAsCustomerPage(page, customer.email, TEST_PASSWORDS.customer)
 
     const meRes = await page.request.get("/api/customers/me/orders")
     expect(meRes.ok()).toBeTruthy()
@@ -281,7 +263,7 @@ test.describe("Order Detail - Base Items", () => {
       },
     })
 
-    await loginAsCustomer(page, customer.email, TEST_PASSWORDS.customer)
+    await loginAsCustomerPage(page, customer.email, TEST_PASSWORDS.customer)
 
     const meRes = await page.request.get("/api/customers/me/orders")
     expect(meRes.ok()).toBeTruthy()

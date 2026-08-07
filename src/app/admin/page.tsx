@@ -1,28 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
 export default function AdminDashboardPage() {
   const { t } = useTranslation()
-  const [data, setData] = useState<{
+  const { data, loading } = useFetch<{
     totalFarmers: number
     totalHelpers: number
     totalCustomers: number
-  } | null>(null)
+  }>("/api/admin/stats")
 
-  useEffect(() => {
-    fetch("/api/admin/stats")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then(setData)
-      .catch(() => setData(null))
-  }, [])
-
-  if (!data) return <p className="text-gray-900">{t("common.loading")}</p>
+  if (loading || !data) return <p className="text-gray-900">{t("common.loading")}</p>
 
   return (
     <div className="space-y-6">

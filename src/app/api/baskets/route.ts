@@ -1,24 +1,16 @@
 import { prisma } from "@/lib/db"
 import { toBasketSummaryDTO, toBasketDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import { getEffectiveFarmerId } from "@/lib/auth-helpers"
-import { csrfCheck } from "@/lib/csrf"
+import { requireFarmerOrHelper } from "@/lib/auth-helpers"
+import { withCsrf } from "@/lib/csrf"
+import { parseBasketInput, validateDeliveryPoints } from "@/lib/basket-input"
 
 export async function GET(request: Request) {
-  const session = await auth()
-
-  if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const farmerId = await getEffectiveFarmerId()
-  if (!farmerId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const guard = await requireFarmerOrHelper()
+  if (!guard.ok) return guard.error
 
   const baskets = await prisma.basket.findMany({
-    where: { farmerId },
+    where: { farmerId: guard.farmerId },
     include: {
       _count: { select: { orders: true } },
       deliveryPoints: { include: { deliveryPoint: true } },
@@ -29,22 +21,12 @@ export async function GET(request: Request) {
   return NextResponse.json(baskets.map(toBasketSummaryDTO))
 }
 
-export async function POST(request: Request) {
-  const csrfError = csrfCheck(request)
-  if (csrfError) return csrfError
+export const POST = withCsrf(
+  async (request: Request): Promise<Response> => {
+    const guard = await requireFarmerOrHelper()
+    if (!guard.ok) return guard.error
 
-  const session = await auth()
-
-  if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const farmerId = await getEffectiveFarmerId()
-  if (!farmerId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const body = await request.json()
+    const body = await request.json()
   const { name, description, orderDeadline, price, deliveryDay, allowedSwaps, deliveryPointIds } = body
 
   if (!name || !orderDeadline || !price || !deliveryDay) {
@@ -61,55 +43,21 @@ export async function POST(request: Request) {
     )
   }
 
-  const deliveryPoints = await prisma.deliveryPoint.findMany({
-    where: { id: { in: deliveryPointIds }, farmerId },
-    select: { id: true },
-  })
+  const deliveryPointsCheck = await validateDeliveryPoints(deliveryPointIds, guard.farmerId)
+  if (!deliveryPointsCheck.ok) return deliveryPointsCheck.error
 
-  if (deliveryPoints.length !== deliveryPointIds.length) {
-    return NextResponse.json(
-      { error: "One or more delivery points are not valid for this farmer" },
-      { status: 400 }
-    )
-  }
-
-  const orderDeadlineDate = new Date(orderDeadline)
-  const deliveryDayDate = new Date(deliveryDay)
-
-  if (isNaN(orderDeadlineDate.getTime()) || isNaN(deliveryDayDate.getTime())) {
-    return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
-  }
-
-  if (orderDeadlineDate >= deliveryDayDate) {
-    return NextResponse.json(
-      { error: "Order deadline must be before the delivery date" },
-      { status: 400 }
-    )
-  }
-
-  const parsedPrice = parseFloat(price)
-  const parsedSwaps = allowedSwaps !== undefined ? parseInt(allowedSwaps, 10) : 3
-
-  if (isNaN(parsedPrice) || parsedPrice <= 0) {
-    return NextResponse.json({ error: "Price must be a positive number" }, { status: 400 })
-  }
-
-  if (isNaN(parsedSwaps) || parsedSwaps < 0) {
-    return NextResponse.json(
-      { error: "allowedSwaps must be a non-negative integer" },
-      { status: 400 }
-    )
-  }
+  const parsed = parseBasketInput({ name, orderDeadline, price, deliveryDay, allowedSwaps })
+  if (!parsed.ok) return parsed.error
 
   const basket = await prisma.basket.create({
     data: {
       name,
       description: description || null,
-      orderDeadline: orderDeadlineDate,
-      price: parsedPrice,
-      deliveryDay: deliveryDayDate,
-      allowedSwaps: parsedSwaps,
-      farmerId,
+      orderDeadline: parsed.value.orderDeadline,
+      price: parsed.value.price!,
+      deliveryDay: parsed.value.deliveryDay,
+      allowedSwaps: parsed.value.allowedSwaps ?? 3,
+      farmerId: guard.farmerId,
       deliveryPoints: {
         create: deliveryPointIds.map((deliveryPointId: string) => ({ deliveryPointId })),
       },
@@ -128,4 +76,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json(toBasketDTO(basket), { status: 201 })
-}
+})

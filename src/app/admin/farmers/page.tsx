@@ -1,10 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 
 interface Farmer {
@@ -18,8 +19,8 @@ interface Farmer {
 
 export default function AdminFarmersPage() {
   const { t } = useTranslation()
-  const [farmers, setFarmers] = useState<Farmer[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, loading, reload: fetchFarmers } = useFetch<Farmer[]>("/api/admin/farmers")
+  const farmers = data ?? []
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState("")
@@ -28,23 +29,6 @@ export default function AdminFarmersPage() {
   const [formError, setFormError] = useState("")
   const [tempPassword, setTempPassword] = useState<string | null>(null)
   const [deleteConfirm, setDeleteConfirm] = useState<{ id: string; name: string; phrase: string[]; input: string } | null>(null)
-
-  const fetchFarmers = () => {
-    fetch("/api/admin/farmers")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setFarmers(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }
-
-  useEffect(() => {
-    fetchFarmers()
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

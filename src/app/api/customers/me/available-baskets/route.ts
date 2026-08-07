@@ -1,14 +1,11 @@
 import { prisma } from "@/lib/db"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import type { AvailableBasketDTO } from "@/types/api"
+import { requireCustomer } from "@/lib/auth-helpers"
+import { toAvailableBasketDTO } from "@/lib/mappers"
 
 export async function GET() {
-  const session = await auth()
-
-  if (!session?.user?.id || session.user.role !== "CUSTOMER") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const guard = await requireCustomer()
+  if (!guard.ok) return guard.error
 
   const now = new Date()
 
@@ -19,9 +16,9 @@ export async function GET() {
         orderDeadline: { gt: now },
         deliveryDay: { gt: now },
         farmer: {
-          farmerCustomers: { some: { customerId: session.user.id } },
+          farmerCustomers: { some: { customerId: guard.user.id } },
         },
-        orders: { none: { customerId: session.user.id } },
+        orders: { none: { customerId: guard.user.id } },
       },
       include: {
         farmer: { select: { name: true } },
@@ -30,20 +27,12 @@ export async function GET() {
       orderBy: { deliveryDay: "asc" },
     }),
     prisma.customerFarmer.count({
-      where: { customerId: session.user.id },
+      where: { customerId: guard.user.id },
     }),
   ])
 
-  const result: AvailableBasketDTO[] = baskets.map((basket) => ({
-    id: basket.id,
-    name: basket.name,
-    description: basket.description,
-    price: basket.price.toString(),
-    deliveryDay: basket.deliveryDay.toISOString(),
-    orderDeadline: basket.orderDeadline.toISOString(),
-    farmerName: basket.farmer.name,
-    itemCount: basket._count.items,
-  }))
-
-  return NextResponse.json({ baskets: result, subscribedFarmerCount })
+  return NextResponse.json({
+    baskets: baskets.map(toAvailableBasketDTO),
+    subscribedFarmerCount,
+  })
 }

@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, loginAsFarmerPage, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -8,15 +8,6 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await cleanupTestData()
 })
-
-async function loginAsFarmer(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
-}
 
 test.describe("Deliveries by Date", () => {
   test("two baskets same date shows combined count", async ({ page, request }) => {
@@ -94,7 +85,7 @@ test.describe("Deliveries by Date", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const datesRes = await page.request.get("/api/deliveries/by-date")
     expect(datesRes.ok()).toBeTruthy()
@@ -182,7 +173,7 @@ test.describe("Deliveries by Date", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const datesRes = await page.request.get("/api/deliveries/by-date")
     expect(datesRes.ok()).toBeTruthy()
@@ -275,7 +266,7 @@ test.describe("Deliveries by Date", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const dateKey = deliveryDate.toISOString().split("T")[0]
     const ordersRes = await page.request.get(`/api/deliveries/by-date?date=${dateKey}`)
@@ -321,7 +312,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const dateKey = deliveryDate.toISOString().split("T")[0]
     const ordersRes = await page.request.get(`/api/deliveries/by-date?date=${dateKey}`)
@@ -359,7 +350,7 @@ test.describe("Deliveries by Date", () => {
 
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer1.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer1.email, TEST_PASSWORDS.farmer)
 
     const datesRes = await page.request.get("/api/deliveries/by-date")
     expect(datesRes.ok()).toBeTruthy()

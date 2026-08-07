@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, TEST_PASSWORDS } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, loginAsFarmerPage, TEST_PASSWORDS } from "./helpers"
 
 const FARMER = "test-cc-farmer"
 const HELPER = "test-cc-helper"
@@ -18,15 +18,6 @@ test.beforeEach(async () => {
 test.afterEach(async () => {
   await cleanupTestData()
 })
-
-async function loginAsFarmer(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
-}
 
 async function createUnverifiedCustomer(
   prisma: any,
@@ -93,7 +84,7 @@ test.describe("Customer Creation", () => {
     const farmer = await createTestFarmer(prisma, FARMER)
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, FARMER_EMAIL, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, FARMER_EMAIL, TEST_PASSWORDS.farmer)
 
     const res = await page.request.post("/api/customers", {
       data: {
@@ -116,10 +107,10 @@ test.describe("Customer Creation", () => {
       include: { customerFarmers: true },
     })
     expect(created).toBeTruthy()
-    expect(created.verified).toBe(false)
-    expect(created.passwordHash).toBeNull()
-    expect(created.customerFarmers).toHaveLength(1)
-    expect(created.customerFarmers[0].farmerId).toBe(farmer.id)
+    expect(created!.verified).toBe(false)
+    expect(created!.passwordHash).toBeNull()
+    expect(created!.customerFarmers).toHaveLength(1)
+    expect(created!.customerFarmers[0].farmerId).toBe(farmer.id)
     await prisma2.$disconnect()
   })
 
@@ -138,7 +129,7 @@ test.describe("Customer Creation", () => {
     })
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, HELPER_EMAIL, "TempPass123!")
+    await loginAsFarmerPage(page, HELPER_EMAIL, "TempPass123!")
 
     const res = await page.request.post("/api/customers", {
       data: { name: "Helper Customer", email: CUSTOMER_EMAIL },
@@ -150,8 +141,8 @@ test.describe("Customer Creation", () => {
       where: { email: CUSTOMER_EMAIL },
       include: { customerFarmers: true },
     })
-    expect(created.customerFarmers).toHaveLength(1)
-    expect(created.customerFarmers[0].farmerId).toBe(farmer.id)
+    expect(created!.customerFarmers).toHaveLength(1)
+    expect(created!.customerFarmers[0].farmerId).toBe(farmer.id)
     await prisma2.$disconnect()
   })
 
@@ -160,7 +151,7 @@ test.describe("Customer Creation", () => {
     await createTestFarmer(prisma, FARMER)
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, FARMER_EMAIL, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, FARMER_EMAIL, TEST_PASSWORDS.farmer)
 
     const first = await page.request.post("/api/customers", {
       data: { name: "Dup", email: CUSTOMER_EMAIL },
@@ -204,7 +195,7 @@ test.describe("Customer Creation", () => {
     await createUnverifiedCustomer(prisma, farmer.id, CUSTOMER_2_EMAIL, { disabled: true })
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, FARMER_EMAIL, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, FARMER_EMAIL, TEST_PASSWORDS.farmer)
 
     const res = await page.request.get("/api/customers")
     const customers = await res.json()
@@ -255,8 +246,8 @@ test.describe("Customer Creation", () => {
 
     const prisma2 = createPrisma()
     const updated = await prisma2.user.findUnique({ where: { email: CUSTOMER_EMAIL } })
-    expect(updated.verified).toBe(false)
-    expect(updated.passwordHash).toBeNull()
+    expect(updated!.verified).toBe(false)
+    expect(updated!.passwordHash).toBeNull()
     await prisma2.$disconnect()
   })
 
@@ -273,7 +264,7 @@ test.describe("Customer Creation", () => {
 
     const prisma2 = createPrisma()
     const updated = await prisma2.user.findUnique({ where: { email: CUSTOMER_EMAIL } })
-    expect(updated.verified).toBe(false)
+    expect(updated!.verified).toBe(false)
     const orders = await prisma2.order.findMany({ where: { customerId: customer.id } })
     expect(orders).toHaveLength(0)
     await prisma2.$disconnect()
@@ -294,8 +285,8 @@ test.describe("Customer Creation", () => {
 
     const prisma2 = createPrisma()
     const updated = await prisma2.user.findUnique({ where: { email: CUSTOMER_EMAIL } })
-    expect(updated.verified).toBe(true)
-    expect(updated.passwordHash).toBeTruthy()
+    expect(updated!.verified).toBe(true)
+    expect(updated!.passwordHash).toBeTruthy()
     const orders = await prisma2.order.findMany({ where: { customerId: customer.id } })
     expect(orders).toHaveLength(1)
     await prisma2.$disconnect()
@@ -331,7 +322,7 @@ test.describe("Customer Creation", () => {
 
     const prisma2 = createPrisma()
     const updated = await prisma2.user.findUnique({ where: { email: CUSTOMER_EMAIL } })
-    expect(updated.disabled).toBe(true)
+    expect(updated!.disabled).toBe(true)
     await prisma2.$disconnect()
 
     await page.goto(`/order/${token.token}`)

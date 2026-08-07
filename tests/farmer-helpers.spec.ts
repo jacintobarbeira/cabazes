@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData, createTestFarmer, TEST_PASSWORDS } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, loginViaUI, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -10,11 +10,7 @@ test.afterEach(async () => {
 })
 
 async function loginAs(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/.*(dashboard|my-orders|reset-password)/, { timeout: 10000 })
+  await loginViaUI(page, email, password, /.*(dashboard|my-orders|reset-password)/)
 }
 
 test.describe("Farmer Helpers", () => {

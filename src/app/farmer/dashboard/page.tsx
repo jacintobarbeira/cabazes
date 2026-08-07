@@ -1,8 +1,8 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import Link from "next/link"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatDateOnly } from "@/lib/dates"
 
@@ -16,25 +16,15 @@ interface Basket {
 
 export default function DashboardPage() {
   const { t } = useTranslation()
-  const [data, setData] = useState<{
+  const { data, loading } = useFetch<{
     baskets: Basket[]
     totalOrders: number
     totalCustomers: number
     pendingOrders: number
     timezone: string
-  } | null>(null)
+  }>("/api/farmer/dashboard")
 
-  useEffect(() => {
-    fetch("/api/farmer/dashboard")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then(setData)
-      .catch(() => setData(null))
-  }, [])
-
-  if (!data) return <p className="text-gray-900">{t("common.loading")}</p>
+  if (loading || !data) return <p className="text-gray-900">{t("common.loading")}</p>
 
   return (
     <div className="space-y-6">

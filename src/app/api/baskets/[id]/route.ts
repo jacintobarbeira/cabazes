@@ -1,29 +1,21 @@
 import { prisma } from "@/lib/db"
 import { toBasketDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import { getEffectiveFarmerId } from "@/lib/auth-helpers"
-import { csrfCheck } from "@/lib/csrf"
+import { requireFarmerOrHelper } from "@/lib/auth-helpers"
+import { withCsrf } from "@/lib/csrf"
+import { parseBasketInput, validateDeliveryPoints } from "@/lib/basket-input"
 
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await auth()
-
-  if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const farmerId = await getEffectiveFarmerId()
-  if (!farmerId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const guard = await requireFarmerOrHelper()
+  if (!guard.ok) return guard.error
 
   const { id } = await params
 
   const basket = await prisma.basket.findFirst({
-    where: { id, farmerId },
+    where: { id, farmerId: guard.farmerId },
     include: {
       items: { include: { product: true } },
       deliveryPoints: { include: { deliveryPoint: true } },
@@ -38,170 +30,118 @@ export async function GET(
   return NextResponse.json(toBasketDTO(basket))
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = csrfCheck(request)
-  if (csrfError) return csrfError
+export const PATCH = withCsrf(
+  async (
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ): Promise<Response> => {
+    const guard = await requireFarmerOrHelper()
+    if (!guard.ok) return guard.error
 
-  const session = await auth()
+    const { id } = await params
+    const body = await request.json()
 
-  if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const farmerId = await getEffectiveFarmerId()
-  if (!farmerId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const { id } = await params
-  const body = await request.json()
-
-  const basket = await prisma.basket.findFirst({
-    where: { id, farmerId },
-    include: {
-      deliveryPoints: { select: { deliveryPointId: true } },
-    },
-  })
-
-  if (!basket) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
-
-  if (basket.published) {
-    return NextResponse.json(
-      { error: "Published baskets cannot be edited" },
-      { status: 400 }
-    )
-  }
-
-  let deliveryPointsUpdate: Record<string, unknown> | undefined
-  if (body.deliveryPointIds !== undefined) {
-    const deliveryPointIds = body.deliveryPointIds as string[]
-    if (!Array.isArray(deliveryPointIds)) {
-      return NextResponse.json(
-        { error: "deliveryPointIds must be an array" },
-        { status: 400 }
-      )
-    }
-
-    const deliveryPoints = await prisma.deliveryPoint.findMany({
-      where: { id: { in: deliveryPointIds }, farmerId },
-      select: { id: true },
+    const basket = await prisma.basket.findFirst({
+      where: { id, farmerId: guard.farmerId },
+      include: {
+        deliveryPoints: { select: { deliveryPointId: true } },
+      },
     })
 
-    if (deliveryPoints.length !== deliveryPointIds.length) {
+    if (!basket) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+
+    if (basket.published) {
       return NextResponse.json(
-        { error: "One or more delivery points are not valid for this farmer" },
+        { error: "Published baskets cannot be edited" },
         { status: 400 }
       )
     }
 
-    const existingIds = new Set(
-      (basket.deliveryPoints as { deliveryPointId: string }[]).map((r) => r.deliveryPointId)
-    )
-    const newIds = new Set(deliveryPointIds)
-    const removedIds = [...existingIds].filter((pid) => !newIds.has(pid))
+    let deliveryPointsUpdate: Record<string, unknown> | undefined
+    if (body.deliveryPointIds !== undefined) {
+      const deliveryPointIds = body.deliveryPointIds as string[]
+      if (!Array.isArray(deliveryPointIds)) {
+        return NextResponse.json(
+          { error: "deliveryPointIds must be an array" },
+          { status: 400 }
+        )
+      }
 
-    deliveryPointsUpdate = {
-      deleteMany: { deliveryPointId: { in: removedIds } },
-      create: deliveryPointIds
-        .filter((pid: string) => !existingIds.has(pid))
-        .map((deliveryPointId: string) => ({ deliveryPointId })),
+      const deliveryPointsCheck = await validateDeliveryPoints(deliveryPointIds, guard.farmerId)
+      if (!deliveryPointsCheck.ok) return deliveryPointsCheck.error
+
+      const existingIds = new Set(
+        (basket.deliveryPoints as { deliveryPointId: string }[]).map((r) => r.deliveryPointId)
+      )
+      const newIds = new Set(deliveryPointIds)
+      const removedIds = [...existingIds].filter((pid) => !newIds.has(pid))
+
+      deliveryPointsUpdate = {
+        deleteMany: { deliveryPointId: { in: removedIds } },
+        create: deliveryPointIds
+          .filter((pid: string) => !existingIds.has(pid))
+          .map((deliveryPointId: string) => ({ deliveryPointId })),
+      }
     }
-  }
 
-  const orderDeadlineDate = body.orderDeadline ? new Date(body.orderDeadline) : basket.orderDeadline
-  const deliveryDayDate = body.deliveryDay ? new Date(body.deliveryDay) : basket.deliveryDay
+    const parsed = parseBasketInput(body, {
+      orderDeadline: basket.orderDeadline,
+      deliveryDay: basket.deliveryDay,
+      price: basket.price,
+      allowedSwaps: basket.allowedSwaps,
+    })
+    if (!parsed.ok) return parsed.error
 
-  if (isNaN(orderDeadlineDate.getTime()) || isNaN(deliveryDayDate.getTime())) {
-    return NextResponse.json({ error: "Invalid date format" }, { status: 400 })
-  }
+    const updated = await prisma.basket.update({
+      where: { id },
+      data: {
+        name: body.name ?? basket.name,
+        description: body.description,
+        orderDeadline: parsed.value.orderDeadline,
+        price: parsed.value.price ?? Number(basket.price),
+        deliveryDay: parsed.value.deliveryDay,
+        allowedSwaps: parsed.value.allowedSwaps ?? basket.allowedSwaps,
+        ...(deliveryPointsUpdate ? { deliveryPoints: deliveryPointsUpdate } : {}),
+      },
+      include: {
+        items: { include: { product: true } },
+        deliveryPoints: { include: { deliveryPoint: true } },
+      },
+    }).catch(() => null)
 
-  if (orderDeadlineDate >= deliveryDayDate) {
-    return NextResponse.json(
-      { error: "Order deadline must be before the delivery date" },
-      { status: 400 }
-    )
-  }
-
-  let parsedPrice = Number(basket.price)
-  if (body.price !== undefined) {
-    parsedPrice = parseFloat(body.price)
-    if (isNaN(parsedPrice) || parsedPrice <= 0) {
-      return NextResponse.json({ error: "Price must be a positive number" }, { status: 400 })
-    }
-  }
-
-  let parsedSwaps = basket.allowedSwaps
-  if (body.allowedSwaps !== undefined) {
-    parsedSwaps = parseInt(body.allowedSwaps, 10)
-    if (isNaN(parsedSwaps) || parsedSwaps < 0) {
+    if (!updated) {
       return NextResponse.json(
-        { error: "allowedSwaps must be a non-negative integer" },
+        { error: "A basket with this name and delivery date already exists" },
         { status: 400 }
       )
     }
+
+    return NextResponse.json(toBasketDTO(updated))
   }
+)
 
-  const updated = await prisma.basket.update({
-    where: { id },
-    data: {
-      name: body.name ?? basket.name,
-      description: body.description,
-      orderDeadline: orderDeadlineDate,
-      price: parsedPrice,
-      deliveryDay: deliveryDayDate,
-      allowedSwaps: parsedSwaps,
-      ...(deliveryPointsUpdate ? { deliveryPoints: deliveryPointsUpdate } : {}),
-    },
-    include: {
-      items: { include: { product: true } },
-      deliveryPoints: { include: { deliveryPoint: true } },
-    },
-  }).catch(() => null)
+export const DELETE = withCsrf(
+  async (
+    request: Request,
+    { params }: { params: Promise<{ id: string }> }
+  ): Promise<Response> => {
+    const guard = await requireFarmerOrHelper()
+    if (!guard.ok) return guard.error
 
-  if (!updated) {
-    return NextResponse.json(
-      { error: "A basket with this name and delivery date already exists" },
-      { status: 400 }
-    )
+    const { id } = await params
+
+    const basket = await prisma.basket.findFirst({
+      where: { id, farmerId: guard.farmerId },
+    })
+
+    if (!basket) {
+      return NextResponse.json({ error: "Not found" }, { status: 404 })
+    }
+
+    await prisma.basket.delete({ where: { id } })
+
+    return NextResponse.json({ success: true })
   }
-
-  return NextResponse.json(toBasketDTO(updated))
-}
-
-export async function DELETE(
-  request: Request,
-  { params }: { params: Promise<{ id: string }> }
-) {
-  const csrfError = csrfCheck(request)
-  if (csrfError) return csrfError
-
-  const session = await auth()
-
-  if (!session?.user?.id || !["FARMER", "FARMER_HELPER"].includes(session.user?.role)) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const farmerId = await getEffectiveFarmerId()
-  if (!farmerId) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  const { id } = await params
-
-  const basket = await prisma.basket.findFirst({
-    where: { id, farmerId },
-  })
-
-  if (!basket) {
-    return NextResponse.json({ error: "Not found" }, { status: 404 })
-  }
-
-  await prisma.basket.delete({ where: { id } })
-
-  return NextResponse.json({ success: true })
-}
+)

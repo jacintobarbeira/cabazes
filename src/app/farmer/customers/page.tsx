@@ -1,17 +1,18 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/Button"
 import { Input, Textarea } from "@/components/Form"
 import { Badge } from "@/components/Badge"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import type { UserDTO } from "@/types/api"
 
 export default function CustomersPage() {
   const { t } = useTranslation()
-  const [customers, setCustomers] = useState<UserDTO[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, loading, reload: fetchCustomers } = useFetch<UserDTO[]>("/api/customers")
+  const customers = data ?? []
   const [showForm, setShowForm] = useState(false)
   const [formError, setFormError] = useState("")
   const [saving, setSaving] = useState(false)
@@ -22,26 +23,6 @@ export default function CustomersPage() {
   const [city, setCity] = useState("")
   const [postalCode, setPostalCode] = useState("")
   const [notes, setNotes] = useState("")
-
-  const fetchCustomers = () => {
-    fetch("/api/customers")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setCustomers(data)
-        setLoading(false)
-      })
-      .catch(() => {
-        setCustomers([])
-        setLoading(false)
-      })
-  }
-
-  useEffect(() => {
-    fetchCustomers()
-  }, [])
 
   const resetForm = () => {
     setShowForm(false)

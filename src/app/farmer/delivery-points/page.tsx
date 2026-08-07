@@ -1,16 +1,17 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import type { DeliveryPointDTO } from "@/types/api"
 
 export default function DeliveryPointsPage() {
   const { t } = useTranslation()
-  const [points, setPoints] = useState<DeliveryPointDTO[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, loading, reload: fetchPoints } = useFetch<DeliveryPointDTO[]>("/api/delivery-points")
+  const points = data ?? []
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState("")
@@ -19,26 +20,6 @@ export default function DeliveryPointsPage() {
   const [postalCode, setPostalCode] = useState("")
   const [formError, setFormError] = useState("")
   const [deleteError, setDeleteError] = useState("")
-
-  const fetchPoints = () => {
-    fetch("/api/delivery-points")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setPoints(data)
-        setLoading(false)
-      })
-      .catch(() => {
-        setPoints([])
-        setLoading(false)
-      })
-  }
-
-  useEffect(() => {
-    fetchPoints()
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

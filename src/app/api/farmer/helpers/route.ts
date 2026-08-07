@@ -1,74 +1,53 @@
 import { prisma } from "@/lib/db"
 import { toFarmerHelperDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
-import { auth } from "@/auth"
-import bcrypt from "bcryptjs"
-import { generateSecurePassword } from "@/lib/password-policy"
+import { requireFarmer } from "@/lib/auth-helpers"
 import { auditLog } from "@/lib/audit"
-import { csrfCheck } from "@/lib/csrf"
+import { withCsrf } from "@/lib/csrf"
+import { createUserWithTempPassword } from "@/lib/create-user"
 
 export async function GET() {
-  const session = await auth()
-
-  if (!session?.user?.id || session.user?.role !== "FARMER") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const guard = await requireFarmer()
+  if (!guard.ok) return guard.error
 
   const helpers = await prisma.user.findMany({
-    where: { managedById: session.user.id },
+    where: { managedById: guard.user.id },
     orderBy: { createdAt: "desc" },
   })
 
   return NextResponse.json(helpers.map(toFarmerHelperDTO))
 }
 
-export async function POST(request: Request) {
-  const csrfError = csrfCheck(request)
-  if (csrfError) return csrfError
+export const POST = withCsrf(
+  async (request: Request): Promise<Response> => {
+    const guard = await requireFarmer()
+    if (!guard.ok) return guard.error
 
-  const session = await auth()
+    const body = await request.json()
+    const { name, email, phone } = body
 
-  if (!session?.user?.id || session.user?.role !== "FARMER") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+    if (!email) {
+      return NextResponse.json({ error: "Email is required" }, { status: 400 })
+    }
 
-  const body = await request.json()
-  const { name, email, phone } = body
-
-  if (!email) {
-    return NextResponse.json({ error: "Email is required" }, { status: 400 })
-  }
-
-  const existingUser = await prisma.user.findUnique({
-    where: { email },
-  })
-
-  if (existingUser) {
-    return NextResponse.json({ error: "User already exists" }, { status: 400 })
-  }
-
-  const tempPassword = generateSecurePassword()
-  const passwordHash = await bcrypt.hash(tempPassword, 10)
-
-  const helper = await prisma.user.create({
-    data: {
+    const result = await createUserWithTempPassword({
       name,
       email,
-      phone: phone || null,
-      passwordHash,
+      phone,
       role: "FARMER_HELPER",
-      managedById: session.user.id,
-      mustResetPassword: true,
-    },
-  })
+      managedById: guard.user.id,
+    })
 
-  auditLog({ event: "HELPER_CREATED", farmerId: session.user.id, helperEmail: email })
+    if (!result.ok) return result.error
 
-  return NextResponse.json(
-    {
-      ...toFarmerHelperDTO(helper),
-      tempPassword,
-    },
-    { status: 201 }
-  )
-}
+    auditLog({ event: "HELPER_CREATED", farmerId: guard.user.id, helperEmail: email })
+
+    return NextResponse.json(
+      {
+        ...toFarmerHelperDTO(result.user),
+        tempPassword: result.tempPassword,
+      },
+      { status: 201 }
+    )
+  }
+)

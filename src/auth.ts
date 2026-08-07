@@ -1,10 +1,10 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
-import bcrypt from "bcryptjs"
 import { prisma } from "./lib/db"
 import { checkLockout, recordFailedAttempt, resetLockout } from "@/lib/lockout"
 import { isRateLimited, recordRateLimitAttempt } from "@/lib/rate-limiter"
 import { auditLog } from "@/lib/audit"
+import { verifyPassword } from "@/lib/passwords"
 
 export const { handlers, signIn, signOut, auth } = NextAuth({
   session: { strategy: "jwt" },
@@ -53,7 +53,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           return null
         }
 
-        const isMatch = await bcrypt.compare(password, user.passwordHash)
+        const isMatch = await verifyPassword(password, user.passwordHash)
         if (!isMatch) {
           await recordFailedAttempt(email)
           await recordRateLimitAttempt(`login:${email}`)

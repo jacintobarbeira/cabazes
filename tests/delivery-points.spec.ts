@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test"
-import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, createTestDeliveryPoint, TEST_PASSWORDS } from "./helpers"
+import { createPrisma, cleanupTestData, createTestFarmer, createTestCustomer, createTestDeliveryPoint, loginAsFarmerPage, TEST_PASSWORDS } from "./helpers"
 
 test.beforeEach(async () => {
   await cleanupTestData()
@@ -9,22 +9,13 @@ test.afterEach(async () => {
   await cleanupTestData()
 })
 
-async function loginAsFarmer(page: any, email: string, password: string) {
-  await page.goto("/login")
-  await page.waitForLoadState("networkidle")
-  await page.fill('input[name="email"]', email)
-  await page.fill('input[type="password"]', password)
-  await page.click('button[type="submit"]')
-  await expect(page).toHaveURL(/.*dashboard/, { timeout: 10000 })
-}
-
 test.describe("Delivery Points", () => {
   test("farmer creates a delivery point and sees it in the list", async ({ page }) => {
     const prisma = createPrisma()
     const farmer = await createTestFarmer(prisma)
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const res = await page.request.post("/api/delivery-points", {
       data: { name: "Test Delivery Point Create", address: "1 Market St", city: "Testville", postalCode: "00000" },
@@ -44,7 +35,7 @@ test.describe("Delivery Points", () => {
     await createTestDeliveryPoint(prisma, otherFarmer.id, "Test Delivery Point Other")
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const res = await page.request.get("/api/delivery-points")
     expect(res.ok()).toBeTruthy()
@@ -58,7 +49,7 @@ test.describe("Delivery Points", () => {
     await createTestDeliveryPoint(prisma, farmer.id, "Test Delivery Point Required")
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const inTwoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -92,7 +83,7 @@ test.describe("Delivery Points", () => {
     const otherPoint = await createTestDeliveryPoint(prisma, otherFarmer.id, "Test Delivery Point Other Basket")
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const inTwoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -116,7 +107,7 @@ test.describe("Delivery Points", () => {
     const pointB = await createTestDeliveryPoint(prisma, farmer.id, "Test Delivery Points Basket B")
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const nextWeek = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)
     const inTwoWeeks = new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)
@@ -331,7 +322,7 @@ test.describe("Delivery Points", () => {
     })
     expect(orderRes.ok()).toBeTruthy()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto("/farmer/orders")
 
     await expect(page.getByText("Test Delivery Points Card Point", { exact: true })).toBeVisible({ timeout: 5000 })
@@ -367,7 +358,7 @@ test.describe("Delivery Points", () => {
     })
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto(`/farmer/baskets/${basket.id}`)
 
     await expect(page.getByText("Delivery Points", { exact: true })).toBeVisible({ timeout: 5000 })
@@ -394,7 +385,7 @@ test.describe("Delivery Points", () => {
     })
     await prisma.$disconnect()
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
     await page.goto(`/farmer/baskets/${basket.id}`)
 
     await expect(page.getByText("Delivery Points", { exact: true })).toBeVisible({ timeout: 5000 })
@@ -462,7 +453,7 @@ test.describe("Delivery Points", () => {
       },
     })
 
-    await loginAsFarmer(page, farmer.email, TEST_PASSWORDS.farmer)
+    await loginAsFarmerPage(page, farmer.email, TEST_PASSWORDS.farmer)
 
     const dateKey = deliveryDate.toISOString().split("T")[0]
     const ordersRes = await page.request.get(`/api/deliveries/by-date?date=${dateKey}`)

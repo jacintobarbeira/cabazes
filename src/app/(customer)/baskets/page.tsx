@@ -1,12 +1,12 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
 import { Button } from "@/components/Button"
 import { formatDate, formatDateOnly } from "@/lib/dates"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import type { AvailableBasketDTO } from "@/types/api"
 
@@ -14,23 +14,12 @@ export default function AvailableBasketsPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const timezone = session?.user?.timezone || "UTC"
-  const [baskets, setBaskets] = useState<AvailableBasketDTO[]>([])
-  const [subscribedFarmerCount, setSubscribedFarmerCount] = useState(0)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch("/api/customers/me/available-baskets")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setBaskets(data.baskets)
-        setSubscribedFarmerCount(data.subscribedFarmerCount)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
+  const { data, loading } = useFetch<{
+    baskets: AvailableBasketDTO[]
+    subscribedFarmerCount: number
+  }>("/api/customers/me/available-baskets")
+  const baskets = data?.baskets ?? []
+  const subscribedFarmerCount = data?.subscribedFarmerCount ?? 0
 
   if (loading) {
     return <p className="text-gray-900">{t("availableBaskets.loading")}</p>

@@ -1,43 +1,24 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { Button } from "@/components/Button"
 import { Input } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import type { ProductDTO } from "@/types/api"
 
 export default function ProductsPage() {
   const { t } = useTranslation()
-  const [products, setProducts] = useState<ProductDTO[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, loading, reload: fetchProducts } = useFetch<ProductDTO[]>("/api/products")
+  const products = data ?? []
   const [showForm, setShowForm] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [name, setName] = useState("")
   const [category, setCategory] = useState("")
   const [description, setDescription] = useState("")
   const [formError, setFormError] = useState("")
-
-  const fetchProducts = () => {
-    fetch("/api/products")
-      .then((res) => {
-        if (!res.ok) throw new Error(t("products.failedToFetch"))
-        return res.json()
-      })
-      .then((data) => {
-        setProducts(data)
-        setLoading(false)
-      })
-      .catch(() => {
-        setProducts([])
-        setLoading(false)
-      })
-  }
-
-  useEffect(() => {
-    fetchProducts()
-  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()

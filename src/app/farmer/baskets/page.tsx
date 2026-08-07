@@ -1,12 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
 import CloneBasketDialog from "@/components/CloneBasketDialog"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatDateOnly } from "@/lib/dates"
 import type { BasketSummaryDTO } from "@/types/api"
@@ -15,22 +16,9 @@ export default function BasketsPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const timezone = session?.user?.timezone || "UTC"
-  const [baskets, setBaskets] = useState<BasketSummaryDTO[]>([])
-  const [loading, setLoading] = useState(true)
+  const { data, loading } = useFetch<BasketSummaryDTO[]>("/api/baskets")
+  const baskets = data ?? []
   const [cloningBasket, setCloningBasket] = useState<BasketSummaryDTO | null>(null)
-
-  useEffect(() => {
-    fetch("/api/baskets")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setBaskets(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
 
   if (loading) return <p className="text-gray-900">{t("common.loading")}</p>
 

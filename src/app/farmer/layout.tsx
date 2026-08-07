@@ -1,6 +1,6 @@
 import { auth } from "@/auth"
 import { redirect } from "next/navigation"
-import { FarmerSidebar } from "@/components/FarmerSidebar"
+import { AppSidebar } from "@/components/AppSidebar"
 
 const navItems = [
   { href: "/farmer/dashboard", icon: "📊", labelKey: "nav.dashboard" },
@@ -30,9 +30,12 @@ export default async function FarmerLayout({
 
   return (
     <div className="flex min-h-screen">
-      <FarmerSidebar
+      <AppSidebar
         navItems={allNavItems}
         userName={session.user?.name || session.user?.email || null}
+        theme="green"
+        brandHref="/farmer/dashboard"
+        brandLabelKey="auth.appName"
       />
       <main className="flex-1 p-8 bg-gray-50">{children}</main>
     </div>

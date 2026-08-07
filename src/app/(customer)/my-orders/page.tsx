@@ -1,40 +1,20 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
-import { Badge } from "@/components/Badge"
+import { OrderStatusBadge } from "@/components/OrderStatusBadge"
 import { Button } from "@/components/Button"
 import { formatDateOnly } from "@/lib/dates"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import type { OrderDTO } from "@/types/api"
-
-const statusVariant: Record<string, "warning" | "success" | "info" | "danger"> = {
-  PENDING: "warning",
-  CONFIRMED: "success",
-  DELIVERED: "info",
-  CANCELLED: "danger",
-}
 
 export default function MyOrdersPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const timezone = session?.user?.timezone || "UTC"
-  const [orders, setOrders] = useState<OrderDTO[]>([])
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    fetch("/api/customers/me/orders")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setOrders(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
+  const { data, loading, reload } = useFetch<OrderDTO[]>("/api/customers/me/orders")
+  const orders = data ?? []
 
   const handleCancel = async (orderId: string) => {
     if (!confirm(t("myOrders.confirmCancel"))) {
@@ -51,9 +31,7 @@ export default function MyOrdersPage() {
         alert(t("myOrders.error", { message: data.error }))
         return
       }
-      setOrders((prev) =>
-        prev.map((o) => (o.id === orderId ? { ...o, status: "CANCELLED" as const } : o))
-      )
+      reload()
     } catch (err) {
       alert(t("myOrders.cancelFailed"))
     }
@@ -87,9 +65,7 @@ export default function MyOrdersPage() {
                     {t("common.cancel")}
                   </Button>
                 )}
-                <Badge variant={statusVariant[order.status] || "default"}>
-                  {t("statuses." + order.status)}
-                </Badge>
+                <OrderStatusBadge status={order.status} />
               </div>
             </div>
           </CardHeader>

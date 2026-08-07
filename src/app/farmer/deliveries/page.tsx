@@ -1,11 +1,13 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useState } from "react"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
 import { Button } from "@/components/Button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { Badge } from "@/components/Badge"
+import { OrderStatusBadge } from "@/components/OrderStatusBadge"
+import { useFetch } from "@/hooks/useFetch"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { formatDateOnly } from "@/lib/dates"
 import type { DeliveryAddressDTO } from "@/types/api"
@@ -19,25 +21,12 @@ export default function DeliveriesPage() {
   const { t } = useTranslation()
   const { data: session } = useSession()
   const timezone = session?.user?.timezone || "UTC"
-  const [deliveryDates, setDeliveryDates] = useState<DeliveryDate[]>([])
+  const { data, loading } = useFetch<DeliveryDate[]>("/api/deliveries/by-date")
+  const deliveryDates = data ?? []
   const [selectedDate, setSelectedDate] = useState<string | null>(null)
   const [addresses, setAddresses] = useState<DeliveryAddressDTO[]>([])
-  const [loading, setLoading] = useState(true)
   const [dateFilter, setDateFilter] = useState("")
   const [expandedOrderId, setExpandedOrderId] = useState<string | null>(null)
-
-  useEffect(() => {
-    fetch("/api/deliveries/by-date")
-      .then((res) => {
-        if (!res.ok) throw new Error("Failed to load")
-        return res.json()
-      })
-      .then((data) => {
-        setDeliveryDates(data)
-        setLoading(false)
-      })
-      .catch(() => setLoading(false))
-  }, [])
 
   const loadDeliveries = async (date: string) => {
     setSelectedDate(date)
@@ -227,7 +216,7 @@ export default function DeliveriesPage() {
                       <div key={`detail-${addr.orderId}`} className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200">
                         <div className="flex items-center justify-between mb-3">
                           <h3 className="font-medium text-gray-900">{t("deliveries.orderDetails")} {addr.customerName || t("basketOrders.unknown")}</h3>
-                          <Badge variant={addr.status === "DELIVERED" ? "info" : "success"}>{t("statuses." + addr.status)}</Badge>
+                          <OrderStatusBadge status={addr.status} />
                         </div>
 
                         <div className="grid grid-cols-2 gap-4 text-sm mb-4">

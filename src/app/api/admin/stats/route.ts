@@ -1,12 +1,10 @@
 import { prisma } from "@/lib/db"
-import { auth } from "@/auth"
+import { requireAdmin } from "@/lib/auth-helpers"
 import { NextResponse } from "next/server"
 
 export async function GET() {
-  const session = await auth()
-  if (!session?.user?.id || session.user?.role !== "ADMINISTRATOR") {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
+  const guard = await requireAdmin()
+  if (!guard.ok) return guard.error
 
   const totalFarmers = await prisma.user.count({ where: { role: "FARMER" } })
   const totalHelpers = await prisma.user.count({ where: { role: "FARMER_HELPER" } })
