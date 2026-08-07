@@ -44,6 +44,49 @@ export default function SettingsPage() {
   const [pwError, setPwError] = useState("")
   const [pwErrors, setPwErrors] = useState<string[]>([])
 
+  const [bulkBusy, setBulkBusy] = useState<"customers" | "products" | null>(null)
+  const [bulkError, setBulkError] = useState("")
+  const [bulkResult, setBulkResult] = useState<{
+    kind: "customers" | "products"
+    total: number
+    created: number
+    results: Array<{ row: number; ok: boolean; error?: string }>
+  } | null>(null)
+
+  const handleBulkUpload = async (
+    kind: "customers" | "products",
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""
+    if (!file) return
+
+    setBulkBusy(kind)
+    setBulkError("")
+    setBulkResult(null)
+
+    try {
+      const buffer = await file.arrayBuffer()
+      const res = await fetch(`/api/farmer/bulk/${kind}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        },
+        body: buffer,
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setBulkResult({ kind, total: data.total, created: data.created, results: data.results })
+      } else {
+        setBulkError(data.error || t("settings.bulk.genericError"))
+      }
+    } catch {
+      setBulkError(t("settings.bulk.genericError"))
+    } finally {
+      setBulkBusy(null)
+    }
+  }
+
   useEffect(() => {
     fetch("/api/farmer/me")
       .then((res) => res.json())
@@ -257,6 +300,84 @@ export default function SettingsPage() {
               {pwSaving ? t("settings.saving") : t("settings.changePassword")}
             </Button>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>{t("settings.bulk.bulkLoad")}</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          {bulkError && (
+            <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{bulkError}</div>
+          )}
+          {bulkResult && (
+            <div className="bg-green-50 text-green-700 text-sm p-3 rounded-md">
+              <p>
+                {t("settings.bulk.uploadSummary", {
+                  created: bulkResult.created,
+                  total: bulkResult.total,
+                })}
+              </p>
+              {bulkResult.results.some((r) => !r.ok) && (
+                <ul className="list-disc ml-5 mt-2 space-y-0.5">
+                  {bulkResult.results
+                    .filter((r) => !r.ok)
+                    .map((r) => (
+                      <li key={`${bulkResult.kind}-${r.row}`}>
+                        {t("settings.bulk.rowFailed", { row: r.row, error: r.error || "" })}
+                      </li>
+                    ))}
+                </ul>
+              )}
+            </div>
+          )}
+          <div className="border rounded-md p-4 space-y-1">
+            <h3 className="font-medium text-gray-900">{t("settings.bulk.bulkCustomers")}</h3>
+            <p className="text-sm text-gray-600">{t("settings.bulk.bulkCustomersDescription")}</p>
+            <div className="flex items-center gap-4 pt-2">
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a
+                href="/api/farmer/bulk/templates/customers"
+                className="text-sm text-green-600 underline hover:text-green-700"
+              >
+                {t("settings.bulk.downloadCustomerTemplate")}
+              </a>
+              <label className="cursor-pointer text-sm font-medium text-green-700 hover:underline">
+                {bulkBusy === "customers" ? t("settings.bulk.uploading") : t("settings.bulk.chooseFile")}
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  disabled={bulkBusy !== null}
+                  onChange={(e) => handleBulkUpload("customers", e)}
+                />
+              </label>
+            </div>
+          </div>
+          <div className="border rounded-md p-4 space-y-1">
+            <h3 className="font-medium text-gray-900">{t("settings.bulk.bulkProducts")}</h3>
+            <p className="text-sm text-gray-600">{t("settings.bulk.bulkProductsDescription")}</p>
+            <div className="flex items-center gap-4 pt-2">
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
+              <a
+                href="/api/farmer/bulk/templates/products"
+                className="text-sm text-green-600 underline hover:text-green-700"
+              >
+                {t("settings.bulk.downloadProductTemplate")}
+              </a>
+              <label className="cursor-pointer text-sm font-medium text-green-700 hover:underline">
+                {bulkBusy === "products" ? t("settings.bulk.uploading") : t("settings.bulk.chooseFile")}
+                <input
+                  type="file"
+                  accept=".xlsx"
+                  className="hidden"
+                  disabled={bulkBusy !== null}
+                  onChange={(e) => handleBulkUpload("products", e)}
+                />
+              </label>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </div>

@@ -101,6 +101,8 @@ const TEST_USER_EMAILS = [
   "test-cc-helper@example.com",
   "test-cc-customer@example.com",
   "test-cc-customer2@example.com",
+  "test-bulk-farmer@example.com",
+  "test-bulk-customer@example.com",
 ]
 
 export const TEST_PASSWORDS = {
