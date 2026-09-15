@@ -26,6 +26,11 @@ export async function GET(
     return NextResponse.json({ error: "Basket not found" }, { status: 404 })
   }
 
+  const url = new URL(request.url)
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1)
+  const rawSize = parseInt(url.searchParams.get("pageSize") || "50", 10)
+  const pageSize = Math.min(100, Math.max(1, isNaN(rawSize) ? 50 : rawSize))
+
   const tokens = await prisma.inviteToken.findMany({
     where: { basketId: id },
     include: {
@@ -33,6 +38,8 @@ export async function GET(
       customer: { select: { name: true, email: true } },
     },
     orderBy: { createdAt: "desc" },
+    take: pageSize,
+    skip: (page - 1) * pageSize,
   })
 
   return NextResponse.json(tokens.map(toInviteTokenDTO))
@@ -65,32 +72,28 @@ export const POST = withCsrf(
       return NextResponse.json({ error: "Basket not found" }, { status: 404 })
     }
 
-    const expiresAt = new Date(basket.orderDeadline)
+    const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000
+    const deadlineMs = new Date(basket.orderDeadline).getTime()
+    const expiresAt = new Date(Math.min(deadlineMs, Date.now() + SEVEN_DAYS_MS))
+
+    // Batch fetch existing tokens to avoid N+1
+    const existingTokens = await prisma.inviteToken.findMany({
+      where: { basketId: id, customerId: { in: customerIds } },
+      include: {
+        basket: { select: { name: true } },
+        customer: { select: { name: true, email: true } },
+      },
+    })
+    const existingByCustomerId = new Map(existingTokens.map((t) => [t.customerId, t]))
 
     const tokens = []
+    const newCustomerIds = customerIds.filter((cid) => !existingByCustomerId.has(cid))
 
-    for (const customerId of customerIds) {
-      const existingToken = await prisma.inviteToken.findFirst({
-        where: {
-          basketId: id,
-          customerId,
-        },
-      })
+    for (const existing of existingTokens) {
+      tokens.push(toInviteTokenDTO(existing))
+    }
 
-      if (existingToken) {
-        const fullToken = await prisma.inviteToken.findUnique({
-          where: { id: existingToken.id },
-          include: {
-            basket: { select: { name: true } },
-            customer: { select: { name: true, email: true } },
-          },
-        })
-        if (fullToken) {
-          tokens.push(toInviteTokenDTO(fullToken))
-        }
-        continue
-      }
-
+    for (const customerId of newCustomerIds) {
       const token = generateToken()
       const inviteToken = await prisma.inviteToken.create({
         data: {

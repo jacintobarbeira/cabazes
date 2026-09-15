@@ -497,7 +497,7 @@ test.describe("Registration Constraints", () => {
     expect(res.ok()).toBeFalsy()
     expect(res.status()).toBe(400)
     const errorData = await res.json()
-    expect(errorData.error).toBe("User already exists")
+    expect(errorData.error).toMatch(/already registered|Unable to create account/)
   })
 
   test("should allow registration with unique email", async ({ request }) => {

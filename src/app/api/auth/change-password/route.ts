@@ -55,7 +55,7 @@ export const POST = withCsrf(
 
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash },
+      data: { passwordHash, passwordChangedAt: new Date() },
     })
 
     auditLog({ event: "PASSWORD_CHANGED", userId, email: user.email })

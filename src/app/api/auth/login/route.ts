@@ -1,7 +1,5 @@
 import { signIn } from "@/auth"
 import { NextResponse } from "next/server"
-import { isRateLimited, rateLimitError } from "@/lib/rate-limiter"
-import { checkLockout } from "@/lib/lockout"
 import { auditLog } from "@/lib/audit"
 import { csrfCheck } from "@/lib/csrf"
 
@@ -16,32 +14,28 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Email and password are required" }, { status: 400 })
   }
 
-  const rateCheck = await isRateLimited(`login:${email}`)
-  if (!rateCheck.allowed) {
-    auditLog({ event: "LOGIN_RATE_LIMITED", email, retryAfter: rateCheck.retryAfter || 0 })
-    return rateLimitError(rateCheck.retryAfter)
-  }
-
-  const { locked, retryAfter } = await checkLockout(email)
-  if (locked) {
-    auditLog({ event: "LOGIN_LOCKED", email, retryAfter: retryAfter || 0 })
-    return NextResponse.json(
-      { error: `Account temporarily locked. Try again in ${retryAfter} seconds.` },
-      { status: 429 }
-    )
-  }
-
   try {
-    await signIn("credentials", {
+    const result = await signIn("credentials", {
       email,
       password,
       redirect: false,
     })
 
+    // NextAuth returns null/undefined on failure without throwing when redirect:false in some versions;
+    // treat falsy or error-containing result as failure
+    if (result && typeof result === "object" && "error" in result && (result as { error?: string }).error) {
+      throw new Error((result as { error?: string }).error)
+    }
+
     auditLog({ event: "LOGIN_SUCCESS", email })
 
     return NextResponse.json({ ok: true })
-  } catch {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    // Surface lockout/rate-limit messages if authorize returned null due to those
+    if (message.toLowerCase().includes("locked") || message.toLowerCase().includes("too many")) {
+      return NextResponse.json({ error: message }, { status: 429 })
+    }
     auditLog({ event: "LOGIN_FAILED", email, reason: "invalid_credentials" })
     return NextResponse.json({ error: "Invalid email or password" }, { status: 401 })
   }

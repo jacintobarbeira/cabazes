@@ -62,11 +62,17 @@ export async function proxy(request: NextRequest) {
     return applyCSP(NextResponse.redirect(new URL("/login", request.url)))
   }
 
+  const secret = process.env.NEXTAUTH_SECRET
+  if (!secret) {
+    console.error("NEXTAUTH_SECRET is not set")
+    return applyCSP(NextResponse.json({ error: "Server misconfigured" }, { status: 500 }))
+  }
+
   if (sessionToken) {
     try {
       const payload = await decode({
         token: sessionToken,
-        secret: process.env.NEXTAUTH_SECRET || "",
+        secret,
         salt,
       })
 

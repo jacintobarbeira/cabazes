@@ -24,6 +24,10 @@ function getTransport() {
 
 const from = process.env.SMTP_FROM || "noreply@cabazes.com"
 
+function sanitizeSubject(value: string): string {
+  return value.replace(/[\r\n]+/g, " ").trim().slice(0, 200)
+}
+
 export async function sendOrderLink(options: {
   to: string
   customerName: string
@@ -41,7 +45,7 @@ export async function sendOrderLink(options: {
   await transport.sendMail({
     from: options.from || from,
     to: options.to,
-    subject: `Your order link for ${options.basketName}`,
+    subject: `Your order link for ${sanitizeSubject(options.basketName)}`,
     html: `
       <p>Hello ${safeCustomerName},</p>
       <p>You have been invited to place an order for <strong>${safeBasketName}</strong>.</p>
@@ -66,7 +70,7 @@ export async function sendDeliveredNotification(options: {
   await transport.sendMail({
     from: options.from || from,
     to: options.to,
-    subject: `Your ${options.basketName} order has been delivered`,
+    subject: `Your ${sanitizeSubject(options.basketName)} order has been delivered`,
     html: `
       <p>Hello ${safeCustomerName},</p>
       <p>Your order for <strong>${safeBasketName}</strong> has been marked as delivered.</p>

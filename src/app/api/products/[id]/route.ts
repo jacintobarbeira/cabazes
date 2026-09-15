@@ -59,6 +59,21 @@ export const DELETE = withCsrf(
       return NextResponse.json({ error: "Not found" }, { status: 404 })
     }
 
+    const usedInPublishedBasket = await prisma.basketItem.findFirst({
+      where: {
+        productId: id,
+        basket: { published: true },
+      },
+      select: { id: true },
+    })
+
+    if (usedInPublishedBasket) {
+      return NextResponse.json(
+        { error: "Cannot delete product: it is used in a published basket" },
+        { status: 400 }
+      )
+    }
+
     await prisma.product.delete({ where: { id } })
 
     return NextResponse.json({ success: true })

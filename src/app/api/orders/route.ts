@@ -11,9 +11,12 @@ export async function GET(request: Request) {
   const guard = await requireFarmerOrHelper()
   if (!guard.ok) return guard.error
 
-  const { searchParams } = new URL(request.url)
-  const basketId = searchParams.get("basketId")
-  const status = searchParams.get("status")
+  const url = new URL(request.url)
+  const basketId = url.searchParams.get("basketId")
+  const status = url.searchParams.get("status")
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1)
+  const rawSize = parseInt(url.searchParams.get("pageSize") || "50", 10)
+  const pageSize = Math.min(100, Math.max(1, isNaN(rawSize) ? 50 : rawSize))
 
   const where: Record<string, unknown> = {
     basket: {
@@ -33,6 +36,8 @@ export async function GET(request: Request) {
     where,
     include: ORDER_DETAIL_INCLUDE,
     orderBy: { createdAt: "desc" },
+    take: pageSize,
+    skip: (page - 1) * pageSize,
   })
 
   return NextResponse.json(orders.map(toOrderDTO))
@@ -304,7 +309,11 @@ export const POST = withCsrf(
           : undefined,
       },
       include: ORDER_DETAIL_INCLUDE,
-    }).catch(() => null)
+    }).catch((err: unknown) => {
+      const code = (err as { code?: string })?.code
+      if (code === "P2002") throw new Error("You have already placed an order for this basket")
+      throw err
+    })
 
     if (!createdOrder) {
       throw new Error("You have already placed an order for this basket")

@@ -47,7 +47,10 @@ export const POST = withCsrf(
       return NextResponse.json({ error: "No active tokens found" }, { status: 404 })
     }
 
-    const origin = process.env.NEXTAUTH_URL || `https://${request.headers.get("host")}`
+    const origin = process.env.NEXTAUTH_URL
+    if (!origin) {
+      return NextResponse.json({ error: "Server misconfigured: NEXTAUTH_URL not set" }, { status: 500 })
+    }
     const results: { tokenId: string; email: string; sent: boolean; error?: string }[] = []
 
     for (const token of tokens) {
@@ -61,7 +64,8 @@ export const POST = withCsrf(
         })
         results.push({ tokenId: token.id, email: token.customer.email, sent: true })
       } catch (err) {
-        results.push({ tokenId: token.id, email: token.customer.email, sent: false, error: String(err) })
+        console.error("[send-email] failed for token", token.id, err)
+        results.push({ tokenId: token.id, email: token.customer.email, sent: false, error: "Failed to send email" })
       }
     }
 

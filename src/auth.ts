@@ -6,8 +6,13 @@ import { isRateLimited, recordRateLimitAttempt } from "@/lib/rate-limiter"
 import { auditLog } from "@/lib/audit"
 import { verifyPassword } from "@/lib/passwords"
 
+if (!process.env.NEXTAUTH_SECRET) {
+  throw new Error("NEXTAUTH_SECRET is not set")
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
-  session: { strategy: "jwt" },
+  session: { strategy: "jwt", maxAge: 60 * 60 * 24 },
+  jwt: { maxAge: 60 * 60 * 24 },
   providers: [
     Credentials({
       name: "credentials",
@@ -71,6 +76,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
           role: user.role,
           timezone: user.timezone,
           mustResetPassword: user.mustResetPassword,
+          passwordChangedAt: (user as unknown as { passwordChangedAt?: Date }).passwordChangedAt?.getTime() ?? 0,
         }
       },
     }),
@@ -82,15 +88,25 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.role = user.role
         token.timezone = user.timezone
         token.mustResetPassword = user.mustResetPassword
+        token.passwordChangedAt = (user as unknown as { passwordChangedAt?: number }).passwordChangedAt ?? 0
       }
       if (trigger === "update") {
-        const dbUser = await prisma.user.findUnique({
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const dbUser = (await (prisma.user.findUnique as any)({
           where: { id: token.id as string },
-          select: { name: true, mustResetPassword: true },
-        })
+          select: { name: true, mustResetPassword: true, passwordChangedAt: true },
+        })) as { name: string | null; mustResetPassword: boolean; passwordChangedAt: Date | null } | null
         if (dbUser) {
           token.name = dbUser.name
           token.mustResetPassword = dbUser.mustResetPassword
+          const pwdChanged = dbUser.passwordChangedAt
+          token.passwordChangedAt = pwdChanged ? pwdChanged.getTime() : 0
+          // If password was changed after token was issued, force re-auth by invalidating token
+          const iat = (token.iat as number | undefined) ?? 0
+          if (pwdChanged && iat * 1000 < pwdChanged.getTime()) {
+            // Invalidate by clearing role – session callback will treat as inactive
+            token.passwordChangedAt = pwdChanged.getTime()
+          }
         }
       }
       return token
@@ -98,17 +114,29 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async session({ session, token }) {
       if (session.user) {
         let active = false
+        let passwordValid = true
         try {
-          const dbUser = await prisma.user.findUnique({
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const dbUser = (await (prisma.user.findUnique as any)({
             where: { id: token.id as string },
-            select: { disabled: true },
-          })
+            select: { disabled: true, passwordChangedAt: true },
+          })) as { disabled: boolean; passwordChangedAt: Date | null } | null
           active = !!dbUser && !dbUser.disabled
+          const pwdChanged = dbUser?.passwordChangedAt
+          if (pwdChanged && token.passwordChangedAt !== undefined) {
+            const iat = (token.iat as number | undefined) ?? 0
+            if (iat * 1000 < pwdChanged.getTime()) {
+              passwordValid = false
+            }
+          } else if (pwdChanged) {
+            const iat = (token.iat as number | undefined) ?? 0
+            if (iat * 1000 < pwdChanged.getTime()) passwordValid = false
+          }
         } catch {
           active = false
         }
 
-        if (!active) {
+        if (!active || !passwordValid) {
           session.user.id = ""
           session.user.role = ""
           session.user.timezone = ""

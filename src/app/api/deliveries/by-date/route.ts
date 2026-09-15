@@ -37,6 +37,10 @@ export async function GET(request: Request) {
   const nextDate = new Date(date)
   nextDate.setDate(nextDate.getDate() + 1)
 
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1)
+  const rawSize = parseInt(url.searchParams.get("pageSize") || "50", 10)
+  const pageSize = Math.min(100, Math.max(1, isNaN(rawSize) ? 50 : rawSize))
+
   const orders = await prisma.order.findMany({
     where: {
       basket: {
@@ -50,6 +54,8 @@ export async function GET(request: Request) {
     },
     include: ORDER_DETAIL_INCLUDE,
     orderBy: [{ deliveryCity: "asc" }, { deliveryAddress: "asc" }],
+    take: pageSize,
+    skip: (page - 1) * pageSize,
   })
 
   return NextResponse.json(orders.map(toDeliveryAddressDTO))

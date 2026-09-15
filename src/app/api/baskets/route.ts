@@ -9,6 +9,11 @@ export async function GET(request: Request) {
   const guard = await requireFarmerOrHelper()
   if (!guard.ok) return guard.error
 
+  const url = new URL(request.url)
+  const page = Math.max(1, parseInt(url.searchParams.get("page") || "1", 10) || 1)
+  const rawSize = parseInt(url.searchParams.get("pageSize") || "50", 10)
+  const pageSize = Math.min(100, Math.max(1, isNaN(rawSize) ? 50 : rawSize))
+
   const baskets = await prisma.basket.findMany({
     where: { farmerId: guard.farmerId },
     include: {
@@ -16,6 +21,8 @@ export async function GET(request: Request) {
       deliveryPoints: { include: { deliveryPoint: true } },
     },
     orderBy: { orderDeadline: "desc" },
+    take: pageSize,
+    skip: (page - 1) * pageSize,
   })
 
   return NextResponse.json(baskets.map(toBasketSummaryDTO))

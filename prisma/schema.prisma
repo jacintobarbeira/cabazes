@@ -21,6 +21,7 @@ model User {
   disabled          Boolean   @default(false)
   mustResetPassword Boolean   @default(false)
   verified          Boolean   @default(true)
+  passwordChangedAt DateTime?
   senderEmail       String?
   managedById       String?
   managedBy         User?     @relation("FarmerHelpers", fields: [managedById], references: [id])
@@ -41,7 +42,7 @@ model User {
 model Product {
   id          String    @id @default(cuid())
   farmerId    String
-  farmer      User      @relation("FarmerProducts", fields: [farmerId], references: [id])
+  farmer      User      @relation("FarmerProducts", fields: [farmerId], references: [id], onDelete: Cascade)
   name        String
   description String?
   category    String?

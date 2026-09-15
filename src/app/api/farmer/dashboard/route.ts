@@ -17,7 +17,16 @@ export async function GET() {
   })
 
   const totalOrders = await prisma.order.count({ where: { basket: { farmerId: guard.farmerId } } })
-  const totalCustomers = await prisma.user.count({ where: { role: "CUSTOMER" } })
+  const totalCustomers = await prisma.user.count({
+    where: {
+      role: "CUSTOMER",
+      OR: [
+        { customerFarmers: { some: { farmerId: guard.farmerId } } },
+        { orders: { some: { basket: { farmerId: guard.farmerId } } } },
+        { inviteTokens: { some: { basket: { farmerId: guard.farmerId } } } },
+      ],
+    },
+  })
   const pendingOrders = await prisma.order.count({ where: { status: "PENDING", basket: { farmerId: guard.farmerId } } })
 
   return NextResponse.json({

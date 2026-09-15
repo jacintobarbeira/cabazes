@@ -13,6 +13,14 @@ import type {
   AvailableBasketDTO,
 } from "@/types/api"
 
+const ALLOWED_ROLES = new Set(["FARMER", "FARMER_HELPER", "ADMINISTRATOR", "CUSTOMER"] as const)
+
+function assertValidRole(role: string): asserts role is "FARMER" | "FARMER_HELPER" | "ADMINISTRATOR" | "CUSTOMER" {
+  if (!ALLOWED_ROLES.has(role as never)) {
+    throw new Error(`Invalid role: ${role}`)
+  }
+}
+
 export function toUserDTO(user: {
   id: string
   email: string
@@ -32,13 +40,14 @@ export function toUserDTO(user: {
   createdAt: Date
   updatedAt: Date
 }): UserDTO {
+  assertValidRole(user.role)
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     phone: user.phone,
     senderEmail: user.senderEmail,
-    role: user.role as "FARMER" | "FARMER_HELPER" | "ADMINISTRATOR" | "CUSTOMER",
+    role: user.role,
     timezone: user.timezone,
     address: user.address,
     city: user.city,
@@ -74,6 +83,7 @@ export function toCustomerDTO(
   },
   options: { includePII?: boolean } = {}
 ): UserDTO {
+  assertValidRole(customer.role)
   const includePII = options.includePII !== false
   return {
     id: customer.id,
@@ -81,7 +91,7 @@ export function toCustomerDTO(
     name: customer.name,
     phone: customer.phone,
     senderEmail: customer.senderEmail,
-    role: customer.role as "FARMER" | "FARMER_HELPER" | "ADMINISTRATOR" | "CUSTOMER",
+    role: customer.role,
     timezone: customer.timezone,
     address: includePII ? customer.address : null,
     city: includePII ? customer.city : null,
@@ -313,6 +323,8 @@ export function toOrderDTO(order: {
   createdAt: Date
   updatedAt: Date
 }): OrderDTO {
+  const ALLOWED_ORDER_STATUS = new Set(["PENDING", "CONFIRMED", "DELIVERED", "CANCELLED"] as const)
+  if (!ALLOWED_ORDER_STATUS.has(order.status as never)) throw new Error(`Invalid order status: ${order.status}`)
   return {
     id: order.id,
     customerName: order.customerName,

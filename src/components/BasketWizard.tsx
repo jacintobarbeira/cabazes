@@ -49,9 +49,12 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
 
   useEffect(() => {
     fetch("/api/delivery-points")
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to load delivery points")
+        return res.json()
+      })
       .then((data) => setDeliveryPoints(data))
-      .catch(() => {})
+      .catch(() => setError("Failed to load delivery points. Please refresh the page."))
   }, [])
 
   useEffect(() => {
@@ -216,6 +219,7 @@ export default function BasketWizard({ basketId }: { basketId?: string }) {
       router.push(`/farmer/baskets/${basketIdResolved}`)
     } catch (error) {
       console.error(error)
+      setError(error instanceof Error ? error.message : "Failed to save basket. Please try again.")
     } finally {
       setLoading(false)
     }

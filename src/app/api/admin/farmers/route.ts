@@ -41,12 +41,8 @@ export const POST = withCsrf(
 
     auditLog({ event: "FARMER_CREATED", adminId: guard.user.id, farmerEmail: email })
 
-    return NextResponse.json(
-      {
-        ...toUserDTO(result.user),
-        tempPassword: result.tempPassword,
-      },
-      { status: 201 }
-    )
+    // tempPassword is not returned in response to avoid exposure in logs/history;
+    // it should be delivered via secure email channel if needed
+    return NextResponse.json(toUserDTO(result.user), { status: 201 })
   }
 )

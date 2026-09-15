@@ -34,6 +34,7 @@ export const POST = withCsrf(
       data: {
         passwordHash,
         mustResetPassword: false,
+        passwordChangedAt: new Date(),
       },
     })
 
