@@ -42,7 +42,12 @@ export const POST = withCsrf(
 
     auditLog({ event: "HELPER_CREATED", farmerId: guard.user.id, helperEmail: email })
 
-    // tempPassword omitted from response for security; deliver via email only
-    return NextResponse.json(toFarmerHelperDTO(result.user), { status: 201 })
+    // One-time disclosure to the authenticated farmer who just created the
+    // helper (see admin/farmers note: no other delivery channel exists).
+    // Never returned by GET or any other endpoint.
+    return NextResponse.json(
+      { ...toFarmerHelperDTO(result.user), tempPassword: result.tempPassword },
+      { status: 201 }
+    )
   }
 )

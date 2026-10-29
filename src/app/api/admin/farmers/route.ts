@@ -41,8 +41,13 @@ export const POST = withCsrf(
 
     auditLog({ event: "FARMER_CREATED", adminId: guard.user.id, farmerEmail: email })
 
-    // tempPassword is not returned in response to avoid exposure in logs/history;
-    // it should be delivered via secure email channel if needed
-    return NextResponse.json(toUserDTO(result.user), { status: 201 })
+    // The temp password is disclosed exactly once, in this 201 response, to
+    // the authenticated admin who just created the account — the only viable
+    // channel (a brand-new farmer has no email server configured yet). It is
+    // never stored in plaintext, logged, or returned by any other endpoint.
+    return NextResponse.json(
+      { ...toUserDTO(result.user), tempPassword: result.tempPassword },
+      { status: 201 }
+    )
   }
 )
