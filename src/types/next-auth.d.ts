@@ -14,6 +14,7 @@ declare module "next-auth" {
     role: string
     timezone: string
     mustResetPassword: boolean
+    passwordChangedAt?: number
   }
 }
 
@@ -23,5 +24,6 @@ declare module "next-auth/jwt" {
     role?: string
     timezone?: string
     mustResetPassword?: boolean
+    passwordChangedAt?: number
   }
 }

@@ -1,5 +1,7 @@
 import NextAuth from "next-auth"
 import Credentials from "next-auth/providers/credentials"
+import Google from "next-auth/providers/google"
+import { PrismaAdapter } from "@auth/prisma-adapter"
 import { prisma } from "./lib/db"
 import { checkLockout, recordFailedAttempt, resetLockout } from "@/lib/lockout"
 import { isRateLimited, recordRateLimitAttempt } from "@/lib/rate-limiter"
@@ -10,10 +12,32 @@ if (!process.env.NEXTAUTH_SECRET) {
   throw new Error("NEXTAUTH_SECRET is not set")
 }
 
+function filteredPrismaAdapter(p: typeof prisma) {
+  const base = PrismaAdapter(p)
+  return {
+    ...base,
+    // Prisma User model has no `image` / `emailVerified` columns – Google profile
+    // sends them and the default adapter tries to persist them → Prisma validation error.
+    // Strip unknown fields so OAuth can create users without a schema migration.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    createUser: (data: any) => {
+      const { image: _image, emailVerified: _emailVerified, ...rest } = data
+      return base.createUser!(rest)
+    },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    updateUser: (data: any) => {
+      const { image: _image, emailVerified: _emailVerified, ...rest } = data
+      return base.updateUser!(rest)
+    },
+  }
+}
+
 export const { handlers, signIn, signOut, auth } = NextAuth({
+  adapter: filteredPrismaAdapter(prisma) as unknown as ReturnType<typeof PrismaAdapter>,
   session: { strategy: "jwt", maxAge: 60 * 60 * 24 },
   jwt: { maxAge: 60 * 60 * 24 },
   providers: [
+    Google,
     Credentials({
       name: "credentials",
       credentials: {
@@ -85,10 +109,15 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
     async jwt({ token, user, trigger, session }) {
       if (user) {
         token.id = user.id
-        token.role = user.role
-        token.timezone = user.timezone
-        token.mustResetPassword = user.mustResetPassword
-        token.passwordChangedAt = (user as unknown as { passwordChangedAt?: number }).passwordChangedAt ?? 0
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        token.role = (user as any).role ?? "CUSTOMER"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        token.timezone = (user as any).timezone ?? "UTC"
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        token.mustResetPassword = (user as any).mustResetPassword ?? false
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const rawPwd = (user as any).passwordChangedAt as Date | number | undefined | null
+        token.passwordChangedAt = rawPwd instanceof Date ? rawPwd.getTime() : (rawPwd ?? 0)
       }
       if (trigger === "update") {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
