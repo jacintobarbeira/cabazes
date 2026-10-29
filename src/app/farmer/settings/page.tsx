@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react"
 import { Button } from "@/components/Button"
-import { Input } from "@/components/Form"
+import { Input, Checkbox } from "@/components/Form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/Card"
 import { useTranslation } from "@/lib/i18n/useTranslation"
 import { COMMON_TIMEZONES } from "@/lib/dates"
-import type { UserDTO } from "@/types/api"
+import type { EmailServerSettingsDTO, UserDTO } from "@/types/api"
 
 function hasSpecialChar(pw: string): boolean {
   const chars = "!@#$%^&*()_+-=[]{};:'\"\\|,./?"
@@ -43,6 +43,22 @@ export default function SettingsPage() {
   const [pwSaved, setPwSaved] = useState(false)
   const [pwError, setPwError] = useState("")
   const [pwErrors, setPwErrors] = useState<string[]>([])
+
+  const [smtpHost, setSmtpHost] = useState("")
+  const [smtpPort, setSmtpPort] = useState("587")
+  const [smtpSecure, setSmtpSecure] = useState(false)
+  const [smtpUsername, setSmtpUsername] = useState("")
+  const [smtpPassword, setSmtpPassword] = useState("")
+  const [smtpHasPassword, setSmtpHasPassword] = useState(false)
+  const [smtpFromAddress, setSmtpFromAddress] = useState("")
+  const [smtpFromName, setSmtpFromName] = useState("")
+  const [smtpConfigured, setSmtpConfigured] = useState(false)
+  const [smtpLoaded, setSmtpLoaded] = useState(false)
+  const [smtpSaving, setSmtpSaving] = useState(false)
+  const [smtpSaved, setSmtpSaved] = useState(false)
+  const [smtpError, setSmtpError] = useState("")
+  const [smtpTestState, setSmtpTestState] = useState<"idle" | "sending" | "sent" | "failed">("idle")
+  const [smtpTestMessage, setSmtpTestMessage] = useState("")
 
   const [bulkBusy, setBulkBusy] = useState<"customers" | "products" | null>(null)
   const [bulkError, setBulkError] = useState("")
@@ -97,6 +113,26 @@ export default function SettingsPage() {
         setSenderEmail(data.senderEmail || "")
         setTimezone(data.timezone || "UTC")
         setLoading(false)
+
+        if (data.role === "FARMER") {
+          return fetch("/api/farmer/email-server")
+            .then((res) => res.json())
+            .then((cfg: EmailServerSettingsDTO) => {
+              if (cfg.configured) {
+                setSmtpHost(cfg.host)
+                setSmtpPort(String(cfg.port))
+                setSmtpSecure(cfg.secure)
+                setSmtpUsername(cfg.username || "")
+                setSmtpHasPassword(cfg.hasPassword)
+                setSmtpFromAddress(cfg.fromAddress || "")
+                setSmtpFromName(cfg.fromName || "")
+                setSmtpConfigured(true)
+              }
+              setSmtpLoaded(true)
+            })
+            .catch(() => setSmtpLoaded(true))
+        }
+        setSmtpLoaded(true)
       })
       .catch(() => setLoading(false))
   }, [])
@@ -164,6 +200,85 @@ export default function SettingsPage() {
     }
   }
 
+  const handleSmtpSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setSmtpSaving(true)
+    setSmtpSaved(false)
+    setSmtpError("")
+    setSmtpTestState("idle")
+
+    try {
+      const payload: Record<string, unknown> = {
+        host: smtpHost,
+        port: Number(smtpPort),
+        secure: smtpSecure,
+        username: smtpUsername || null,
+        fromAddress: smtpFromAddress || null,
+        fromName: smtpFromName || null,
+      }
+      // Only send the password when a new one was typed; blank means "keep".
+      if (smtpPassword !== "") payload.password = smtpPassword
+
+      const res = await fetch("/api/farmer/email-server", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const data = await res.json()
+      if (res.ok) {
+        setSmtpHasPassword(data.hasPassword)
+        setSmtpPassword("")
+        setSmtpConfigured(true)
+        setSmtpSaved(true)
+        setTimeout(() => setSmtpSaved(false), 3000)
+      } else {
+        setSmtpError(data.error || t("settings.emailServer.genericError"))
+      }
+    } catch {
+      setSmtpError(t("settings.emailServer.genericError"))
+    } finally {
+      setSmtpSaving(false)
+    }
+  }
+
+  const handleSmtpRemove = async () => {
+    setSmtpError("")
+    const res = await fetch("/api/farmer/email-server", { method: "DELETE" })
+    if (res.ok) {
+      setSmtpHost("")
+      setSmtpPort("587")
+      setSmtpSecure(false)
+      setSmtpUsername("")
+      setSmtpPassword("")
+      setSmtpHasPassword(false)
+      setSmtpFromAddress("")
+      setSmtpFromName("")
+      setSmtpConfigured(false)
+      setSmtpTestState("idle")
+    } else {
+      setSmtpError(t("settings.emailServer.genericError"))
+    }
+  }
+
+  const handleSmtpTest = async () => {
+    setSmtpTestState("sending")
+    setSmtpTestMessage("")
+    try {
+      const res = await fetch("/api/farmer/email-server/test", { method: "POST" })
+      const data = await res.json()
+      if (res.ok) {
+        setSmtpTestState("sent")
+        setSmtpTestMessage(t("settings.emailServer.testSent", { email: data.to }))
+      } else {
+        setSmtpTestState("failed")
+        setSmtpTestMessage(t("settings.emailServer.testFailed", { error: data.error }))
+      }
+    } catch {
+      setSmtpTestState("failed")
+      setSmtpTestMessage(t("settings.emailServer.testFailed", { error: "" }))
+    }
+  }
+
   if (loading) {
     return <p className="text-gray-900">{t("settings.loading")}</p>
   }
@@ -222,6 +337,7 @@ export default function SettingsPage() {
                 {t("settings.senderEmail")}
               </label>
               <Input
+                id="sender-email"
                 value={senderEmail}
                 onChange={(e) => setSenderEmail(e.target.value)}
                 placeholder={t("settings.senderEmailPlaceholder")}
@@ -234,6 +350,158 @@ export default function SettingsPage() {
           </form>
         </CardContent>
       </Card>
+
+      {user?.role === "FARMER" && smtpLoaded && (
+        <Card>
+          <CardHeader>
+            <CardTitle>{t("settings.emailServer.title")}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <form onSubmit={handleSmtpSave} className="space-y-4">
+              <p className="text-sm text-gray-600">{t("settings.emailServer.description")}</p>
+              {smtpSaved && (
+                <div className="bg-green-50 text-green-700 text-sm p-3 rounded-md">
+                  {t("settings.emailServer.saved")}
+                </div>
+              )}
+              {smtpError && (
+                <div className="bg-red-50 text-red-700 text-sm p-3 rounded-md">{smtpError}</div>
+              )}
+              {!smtpConfigured && (
+                <div className="bg-yellow-50 text-yellow-800 text-sm p-3 rounded-md">
+                  {t("settings.emailServer.notConfigured")}
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="sm:col-span-2">
+                  <label className="block text-sm font-medium text-gray-900 mb-1">
+                    {t("settings.emailServer.host")}
+                  </label>
+                  <Input
+                    id="smtp-host"
+                    dir="ltr"
+                    value={smtpHost}
+                    onChange={(e) => setSmtpHost(e.target.value)}
+                    placeholder={t("settings.emailServer.hostPlaceholder")}
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">
+                    {t("settings.emailServer.port")}
+                  </label>
+                  <Input
+                    id="smtp-port"
+                    type="number"
+                    min={1}
+                    max={65535}
+                    value={smtpPort}
+                    onChange={(e) => setSmtpPort(e.target.value)}
+                    required
+                  />
+                </div>
+              </div>
+              <div>
+                <Checkbox
+                  id="smtp-secure"
+                  checked={smtpSecure}
+                  onChange={(e) => setSmtpSecure(e.target.checked)}
+                  label={t("settings.emailServer.secure")}
+                />
+                <p className="text-xs text-gray-500 mt-1">{t("settings.emailServer.secureHint")}</p>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">
+                    {t("settings.emailServer.username")}
+                  </label>
+                  <Input
+                    id="smtp-username"
+                    type="text"
+                    autoComplete="off"
+                    value={smtpUsername}
+                    onChange={(e) => setSmtpUsername(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">
+                    {t("settings.emailServer.password")}
+                  </label>
+                  <Input
+                    id="smtp-password"
+                    type="password"
+                    autoComplete="new-password"
+                    value={smtpPassword}
+                    onChange={(e) => setSmtpPassword(e.target.value)}
+                    placeholder={smtpHasPassword ? t("settings.emailServer.passwordStored") : ""}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">
+                    {t("settings.emailServer.senderAddress")}
+                  </label>
+                  <Input
+                    id="smtp-from-address"
+                    type="email"
+                    dir="ltr"
+                    value={smtpFromAddress}
+                    onChange={(e) => setSmtpFromAddress(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-900 mb-1">
+                    {t("settings.emailServer.senderName")}
+                  </label>
+                  <Input
+                    id="smtp-from-name"
+                    value={smtpFromName}
+                    onChange={(e) => setSmtpFromName(e.target.value)}
+                  />
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <Button type="submit" disabled={smtpSaving}>
+                  {smtpSaving ? t("settings.emailServer.saving") : t("settings.emailServer.save")}
+                </Button>
+                {smtpConfigured && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={smtpTestState === "sending"}
+                    onClick={handleSmtpTest}
+                  >
+                    {smtpTestState === "sending"
+                      ? t("settings.emailServer.testing")
+                      : t("settings.emailServer.test")}
+                  </Button>
+                )}
+                {smtpConfigured && (
+                  <button
+                    type="button"
+                    onClick={handleSmtpRemove}
+                    className="text-sm text-red-600 hover:underline"
+                  >
+                    {t("settings.emailServer.remove")}
+                  </button>
+                )}
+              </div>
+              {smtpTestMessage && (
+                <div
+                  className={`text-sm p-3 rounded-md ${
+                    smtpTestState === "sent"
+                      ? "bg-green-50 text-green-700"
+                      : "bg-red-50 text-red-700"
+                  }`}
+                >
+                  {smtpTestMessage}
+                </div>
+              )}
+            </form>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader>

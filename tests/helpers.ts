@@ -2,6 +2,36 @@ import { expect } from "@playwright/test"
 import type { Page, APIRequestContext } from "@playwright/test"
 import { PrismaClient } from "@prisma/client"
 import { PrismaLibSql } from "@prisma/adapter-libsql"
+import { existsSync, readFileSync, rmSync } from "node:fs"
+import { resolve } from "node:path"
+import { createCipheriv, randomBytes } from "node:crypto"
+import { TEST_EMAIL_SINK_FILE, TEST_EMAIL_ENCRYPTION_KEY } from "../playwright.config"
+
+export const EMAIL_SINK_FILE = resolve(
+  __dirname,
+  "..",
+  process.env.EMAIL_SINK_FILE || TEST_EMAIL_SINK_FILE
+)
+
+export type CapturedEmail = {
+  from: string
+  to: string
+  subject: string
+  html: string
+}
+
+export function readCapturedEmails(): CapturedEmail[] {
+  if (!existsSync(EMAIL_SINK_FILE)) return []
+
+  return readFileSync(EMAIL_SINK_FILE, "utf8")
+    .split("\n")
+    .filter((line) => line.trim().length > 0)
+    .map((line) => JSON.parse(line) as CapturedEmail)
+}
+
+export function clearCapturedEmails() {
+  rmSync(EMAIL_SINK_FILE, { force: true })
+}
 
 const TEST_BASKET_PREFIXES = [
   "Test ",
@@ -79,6 +109,10 @@ const TEST_USER_EMAILS = [
   "scope-other-farmer@example.com",
   "test-reset-flow@example.com",
   "test-reset-customer@example.com",
+  "rate-limit-happy@example.com",
+  "rate-limit-lockout@example.com",
+  "rate-limit-shared@example.com",
+  "rate-limit-window@example.com",
   "test-rate-limit@example.com",
   "test-rate-limit-b@example.com",
   "test-rate-limit-c@example.com",
@@ -103,6 +137,10 @@ const TEST_USER_EMAILS = [
   "test-cc-customer2@example.com",
   "test-bulk-farmer@example.com",
   "test-bulk-customer@example.com",
+  "test-email-server-farmer@example.com",
+  "test-email-server-farmer-b@example.com",
+  "test-email-server-helper@example.com",
+  "test-email-server-customer@example.com",
 ]
 
 export const TEST_PASSWORDS = {
@@ -135,6 +173,46 @@ export async function createTestAdmin(prisma: any, opts?: { email?: string } | s
   const hash = await bcrypt.hash(TEST_PASSWORDS.admin, 10)
   return prisma.user.create({
     data: { email, name: "Test Admin", passwordHash: hash, role: "ADMINISTRATOR", phone: "+3333333333" },
+  })
+}
+
+/**
+ * Encrypts with the same AES-256-GCM scheme as the app, using the test-only
+ * key that playwright.config.ts gives the webServer. Lets tests seed an email
+ * server config directly through Prisma.
+ */
+export function createTestEmailSecret(plaintext: string): string {
+  const key = Buffer.from(TEST_EMAIL_ENCRYPTION_KEY, "base64")
+  const iv = randomBytes(12)
+  const cipher = createCipheriv("aes-256-gcm", key, iv)
+  const ciphertext = Buffer.concat([cipher.update(plaintext, "utf8"), cipher.final()])
+  return ["v1", iv.toString("base64"), cipher.getAuthTag().toString("base64"), ciphertext.toString("base64")].join(":")
+}
+
+export async function createTestEmailServerConfig(
+  prisma: any,
+  farmerId: string,
+  opts?: {
+    host?: string
+    port?: number
+    secure?: boolean
+    username?: string | null
+    password?: string | null
+    fromAddress?: string | null
+    fromName?: string | null
+  }
+) {
+  return prisma.emailServerConfig.create({
+    data: {
+      farmerId,
+      host: opts?.host ?? "localhost",
+      port: opts?.port ?? 1025,
+      secure: opts?.secure ?? false,
+      usernameEnc: opts?.username ? createTestEmailSecret(opts.username) : null,
+      passwordEnc: opts?.password ? createTestEmailSecret(opts.password) : null,
+      fromAddress: opts?.fromAddress ?? null,
+      fromName: opts?.fromName ?? null,
+    },
   })
 }
 
@@ -316,6 +394,10 @@ async function cleanupTestDataOnce() {
     const testUserIds = testUsers.map((u: { id: string }) => u.id)
 
     if (testUserIds.length > 0) {
+      await prisma.emailServerConfig.deleteMany({
+        where: { farmerId: { in: testUserIds } },
+      })
+
       await prisma.customerFarmer.deleteMany({
         where: { OR: [{ customerId: { in: testUserIds } }, { farmerId: { in: testUserIds } }] },
       })

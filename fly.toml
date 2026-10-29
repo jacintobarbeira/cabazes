@@ -6,6 +6,9 @@
 app = 'cabazes'
 primary_region = 'cdg'
 
+[env]
+  EMAIL_TRANSPORT = 'smtp'
+
 [build]
 [[mounts]]
   source = 'data'

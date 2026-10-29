@@ -37,6 +37,22 @@ model User {
   customerFarmers   CustomerFarmer[] @relation("CustomerFarmers")
   farmerCustomers   CustomerFarmer[] @relation("FarmerCustomers")
   deliveryPoints    DeliveryPoint[]  @relation("FarmerDeliveryPoints")
+  emailServerConfig EmailServerConfig?
+}
+
+model EmailServerConfig {
+  id          String   @id @default(cuid())
+  farmerId    String   @unique
+  farmer      User     @relation(fields: [farmerId], references: [id], onDelete: Cascade)
+  host        String
+  port        Int      @default(587)
+  secure      Boolean  @default(false)
+  usernameEnc String?
+  passwordEnc String?
+  fromAddress String?
+  fromName    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model Product {

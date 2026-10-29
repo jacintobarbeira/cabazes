@@ -137,7 +137,7 @@ test.describe("Sender Email", () => {
     await page.goto("/farmer/settings")
     await page.waitForLoadState("networkidle")
 
-    const input = page.locator('input[type="email"]')
+    const input = page.locator("#sender-email")
     await expect(input).toHaveValue("myfarm@example.com")
   })
 })

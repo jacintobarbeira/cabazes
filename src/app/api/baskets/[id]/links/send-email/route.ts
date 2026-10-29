@@ -2,7 +2,7 @@ import { prisma } from "@/lib/db"
 import { NextResponse } from "next/server"
 import { requireFarmerOrHelper } from "@/lib/auth-helpers"
 import { withCsrf } from "@/lib/csrf"
-import { sendOrderLink } from "@/lib/email"
+import { buildEmailSettings, getEmailTransport, sendOrderLink } from "@/lib/email"
 
 export const POST = withCsrf(
   async (
@@ -14,8 +14,17 @@ export const POST = withCsrf(
 
     const farmer = await prisma.user.findUnique({
       where: { id: guard.farmerId },
-      select: { senderEmail: true },
+      select: { senderEmail: true, emailServerConfig: true },
     })
+
+    const settings = farmer ? buildEmailSettings(farmer) : null
+
+    if (!settings && getEmailTransport() === "smtp") {
+      return NextResponse.json(
+        { error: "Email server is not configured. Set it up in Farmer Settings." },
+        { status: 400 }
+      )
+    }
 
     const { id } = await params
 
@@ -61,6 +70,7 @@ export const POST = withCsrf(
           basketName: basket.name,
           link: `${origin}/order/${token.token}`,
           from: farmer?.senderEmail || undefined,
+          settings,
         })
         results.push({ tokenId: token.id, email: token.customer.email, sent: true })
       } catch (err) {

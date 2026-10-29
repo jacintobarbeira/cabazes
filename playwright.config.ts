@@ -1,5 +1,10 @@
 import { defineConfig, devices } from "@playwright/test"
 
+export const TEST_EMAIL_SINK_FILE = ".tmp/test-emails.jsonl"
+
+// Test-only key (base64 of 32 bytes). Never reuse in production.
+export const TEST_EMAIL_ENCRYPTION_KEY = "Y2FiYXplcy10ZXN0LWVtYWlsLWtleWNhYmF6ZXMtdGU="
+
 export default defineConfig({
   testDir: "./tests",
   globalSetup: "./tests/globalSetup.ts",
@@ -34,6 +39,10 @@ export default defineConfig({
     reuseExistingServer: !process.env.CI,
     env: {
       DATABASE_URL: "file:./prisma/test.db",
+      EMAIL_TRANSPORT: "sink",
+      EMAIL_SINK_FILE: TEST_EMAIL_SINK_FILE,
+      // Test-only key (32 random-byte equivalent). Never reuse in production.
+      EMAIL_ENCRYPTION_KEY: TEST_EMAIL_ENCRYPTION_KEY,
     },
   },
 })

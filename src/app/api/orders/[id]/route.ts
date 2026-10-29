@@ -3,7 +3,7 @@ import { toOrderDTO } from "@/lib/mappers"
 import { NextResponse } from "next/server"
 import { requireSession, getEffectiveFarmerId } from "@/lib/auth-helpers"
 import { withCsrf } from "@/lib/csrf"
-import { sendDeliveredNotification } from "@/lib/email"
+import { buildEmailSettings, getEmailTransport, sendDeliveredNotification } from "@/lib/email"
 import { ORDER_DETAIL_INCLUDE } from "@/lib/prisma-includes"
 
 export const PATCH = withCsrf(
@@ -29,7 +29,11 @@ export const PATCH = withCsrf(
 
   const order = await prisma.order.findUnique({
     where: { id },
-    include: { basket: { include: { farmer: { select: { senderEmail: true } } } } },
+    include: {
+      basket: {
+        include: { farmer: { select: { senderEmail: true, emailServerConfig: true } } },
+      },
+    },
   })
 
   if (!order) {
@@ -111,12 +115,16 @@ export const PATCH = withCsrf(
   })
 
   if (newStatus === "DELIVERED" && order.customerEmail) {
-    sendDeliveredNotification({
-      to: order.customerEmail,
-      customerName: order.customerName || order.customerEmail,
-      basketName: order.basket.name,
-      from: order.basket.farmer?.senderEmail || undefined,
-    }).catch(() => {})
+    const settings = buildEmailSettings(order.basket.farmer)
+    if (settings || getEmailTransport() !== "smtp") {
+      sendDeliveredNotification({
+        to: order.customerEmail,
+        customerName: order.customerName || order.customerEmail,
+        basketName: order.basket.name,
+        from: order.basket.farmer.senderEmail || undefined,
+        settings,
+      }).catch((err) => console.error("[order-delivered] notification failed", err))
+    }
   }
 
   return NextResponse.json(toOrderDTO(updated))

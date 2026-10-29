@@ -18,6 +18,21 @@ export interface UserDTO {
   updatedAt: string
 }
 
+/**
+ * Farmer email server settings as exposed over the API. The SMTP password is
+ * never included — `hasPassword` only says whether one is stored.
+ */
+export interface EmailServerSettingsDTO {
+  configured: boolean
+  host: string
+  port: number
+  secure: boolean
+  username: string | null
+  hasPassword: boolean
+  fromAddress: string | null
+  fromName: string | null
+}
+
 export interface FarmerHelperDTO {
   id: string
   email: string
